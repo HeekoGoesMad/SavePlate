@@ -8,7 +8,7 @@
     <div class="login-right">
       <!-- Logo Area (separate from form) -->
       <div class="logo">
-        <img src="D:\Dokumen Kampus - Ariel\Semester 6\Software Engineering\SavePlate\frontend\src\assets\Save Plate Logo.png" width="350" height="130" alt="" />
+        <img src="D:\STIKOM MATAKULIAH\Semester 6\Software Engineering\Assignment\code\SavePlate\frontend\src\assets\Save Plate Logo.png" width="350" height="130" alt="" />
       </div>
 
       <div class="form-wrapper">
