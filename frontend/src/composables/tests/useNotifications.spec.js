@@ -1,33 +1,4 @@
-﻿/**
- * ============================================================
- *  UNIT TESTING - UC5: View Notifications
- *  SavePlate - Smart Food Waste Reduction App
- *  BIT216 Software Engineering Principles - Assignment 2
- * ============================================================
- *  Tester     : Adrienne Kayana Wistara Lie (E2400071)
- *  Date       : 25 April 2026
- *  Tool       : Vitest + Vue Test Utils + happy-dom
- *  Composable : useNotifications.js (usecase 5 core logic)
- * ============================================================
- *  Format mirrors the Testing Template.xlsx - Unit Testing sheet.
- *  Each describe block  = one User Story from Assignment 1 Task 2
- *  Each it() block      = one Test Case (TC ID in the label)
- *  Comments inside each it() follow the template fields:
- *    Test Scenario | Test Data | Source Code | Expected Output
- * ============================================================
- *
- *  IMPORTANT - Singleton reset:
- *  useNotifications.js uses a MODULE-LEVEL ref (singleton) so that
- *  all Vue components share the same list.  That also means test
- *  state leaks between tests.  We reset notifications manually in
- *  beforeEach() by re-assigning to a fresh copy of the seed data.
- */
-
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-
-// We import the module so we can reach the internal singleton
-// The composable re-exports from the same module-level ref every call, so
-// calling the factory just gives us a view into the shared state.
+﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useNotifications } from '../useNotifications.js'
 
 // Seed snapshot - mirrors the actual data in useNotifications.js
