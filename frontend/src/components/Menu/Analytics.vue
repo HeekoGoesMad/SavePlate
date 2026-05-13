@@ -6,7 +6,7 @@ import { useNotifications } from '@/composables/useNotifications'
 const emit = defineEmits(['navigate'])
 
 const { unreadCount } = useNotifications()
-const userName = ref('John Doe')
+const userName = ref('Adrienne Kayana')
 
 const infoBoxes = [
   { title: 'Total Saved', value: '1,240', icon: '🥑', bgColor: '#f0faf0', color: '#2da12b', desc: 'Items rescued this year' },

@@ -113,7 +113,7 @@ function addMeal() {
     name,
     ingredient: selectedIngredients.value.join(', ') || '—',
   })
-  showToast(`“${name}” added to ${modalSlot.value}`, 'success')
+  showToast(`“${name}” added to ${modalSlot.value}`, 'success', '📅')
   closeModal()
 }
 
@@ -121,7 +121,7 @@ function addRecipe(rec) {
   const key = `${modalDay.value}-${modalSlot.value}`
   if (!mealPlan.value[key]) mealPlan.value[key] = []
   mealPlan.value[key].push({ name: rec.name, ingredient: rec.uses.join(', ') })
-  showToast(`“${rec.name}” added to ${modalSlot.value}`, 'meal')
+  showToast(`“${rec.name}” added to ${modalSlot.value}`, 'meal', '🍳')
   closeModal()
 }
 
@@ -136,7 +136,7 @@ function addInventoryToDay(item) {
   const key = `${today.iso}-${emptySlot}`
   if (!mealPlan.value[key]) mealPlan.value[key] = []
   mealPlan.value[key].push({ name: `Meal with ${item.name}`, ingredient: item.name })
-  showToast(`${item.name} quick-added to today’s ${emptySlot}`, 'success')
+  showToast(`${item.name} quick-added to today’s ${emptySlot}`, 'success', '➕')
 }
 
 function removeMeal(dayIso, slot, idx) {
@@ -144,7 +144,7 @@ function removeMeal(dayIso, slot, idx) {
   if (mealPlan.value[key]) {
     const removed = mealPlan.value[key][idx]
     mealPlan.value[key].splice(idx, 1)
-    showToast(`Removed “${removed?.name ?? 'meal'}” from ${slot}`, 'warning')
+    showToast(`Removed “${removed?.name ?? 'meal'}” from ${slot}`, 'warning', '🗑️')
   }
 }
 
@@ -177,12 +177,12 @@ function confirmPlan() {
 
   // Toast confirmation
   const reservedMsg = reservedCount > 0 ? ` ${reservedCount} ingredient(s) reserved.` : ''
-  showToast(`Meal plan confirmed!  ${reservedMsg.trim()}`, 'success')
+  showToast(`Meal plan confirmed!  ${reservedMsg.trim()}`, 'success', '✅')
 }
 </script>
 
 <template>
-  <AppLayout current-page="meal-planner" :unread-count="unreadCount" user-name="John Doe" @navigate="emit('navigate', $event)">
+  <AppLayout current-page="meal-planner" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
 
     <div class="planner-page">
 
@@ -274,7 +274,7 @@ function confirmPlan() {
         <!-- Inventory sidebar -->
         <div class="inventory-panel">
           <div class="inv-head">
-            <h2>Available Inventory</h2>
+            <h2>🥦 Available Inventory</h2>
             <span class="inv-hint">Sorted by expiry</span>
           </div>
           <div class="inv-list">
@@ -284,7 +284,7 @@ function confirmPlan() {
                 <span class="inv-meta">{{ item.category }} · {{ item.qty }}</span>
               </div>
               <div class="inv-right">
-                <span v-if="item.isReserved" class="reserved-chip">Reserved</span>
+                <span v-if="item.isReserved" class="reserved-chip">🔒 Reserved</span>
                 <span v-else class="exp-chip" :style="{ background: urgencyColor(item.daysLeft).bg, color: urgencyColor(item.daysLeft).color }">
                   {{ item.daysLeft }}d
                 </span>
@@ -293,7 +293,7 @@ function confirmPlan() {
               </div>
             </div>
           </div>
-          <p class="inv-tip">Items with fewer days left are shown first. Tap + to quick-add to today.</p>
+          <p class="inv-tip">💡 Items with fewer days left are shown first. Tap ＋ to quick-add to today.</p>
         </div>
 
       </div>
@@ -314,8 +314,8 @@ function confirmPlan() {
             <button class="modal-close" @click="closeModal">✕</button>
           </div>
           <div class="modal-tabs">
-            <button class="modal-tab" :class="{ active: modalTab === 'manual' }" @click="modalTab = 'manual'">Manual</button>
-            <button class="modal-tab" :class="{ active: modalTab === 'recipe' }" @click="modalTab = 'recipe'">Suggestions</button>
+            <button class="modal-tab" :class="{ active: modalTab === 'manual' }" @click="modalTab = 'manual'">✏️ Manual</button>
+            <button class="modal-tab" :class="{ active: modalTab === 'recipe' }" @click="modalTab = 'recipe'">🍳 Suggestions</button>
           </div>
           <div v-if="modalTab === 'manual'" class="modal-body">
             <div class="field">
@@ -337,6 +337,7 @@ function confirmPlan() {
             <p class="recipe-hint">Based on your inventory, sorted by soonest expiry:</p>
             <div class="recipe-list">
               <div v-for="rec in recipeSuggestions" :key="rec.name" class="recipe-card" @click="addRecipe(rec)">
+                <div class="recipe-icon">🍳</div>
                 <div class="recipe-info">
                   <div class="recipe-name">{{ rec.name }}</div>
                   <div class="recipe-uses">Uses: {{ rec.uses.join(', ') }}</div>
@@ -353,6 +354,7 @@ function confirmPlan() {
     <Teleport to="body">
       <Transition name="fab">
         <button v-if="hasChanges" class="fab-confirm" @click="confirmPlan">
+          <span class="fab-icon">✓</span>
           <span class="fab-label">Confirm Plan</span>
         </button>
       </Transition>

@@ -15,7 +15,6 @@ const activeTab = ref('browse') // 'browse' | 'inventory'
 // ── Filters Section ──
 const searchQuery    = ref('')
 const filterCategory = ref('')   // '' | category label
-const filterSource   = ref('')   // '' | 'donation' | 'own'
 const filterExpiry   = ref('')   // '' | '1' | '3' | '7'
 const filterStorage  = ref('')   // '' | 'Fridge' | 'Freezer' | 'Pantry'
 const sortBy         = ref('expiry')
@@ -31,7 +30,7 @@ const CATEGORIES = [
 ]
 
 // ── Demo User ──
-const CURRENT_USER = 'John Doe'
+const CURRENT_USER = 'Adrienne Kayana'
 
 function computeDaysLeft(expiryDateStr) {
   if (!expiryDateStr) return 0
@@ -41,8 +40,6 @@ function computeDaysLeft(expiryDateStr) {
   expiry.setHours(0, 0, 0, 0)
   return Math.round((expiry - today) / (1000 * 60 * 60 * 24))
 }
-
-let nextId = 200
 
 // ── Dummy Data Donated & Claimable Food 
 const allItems = ref([
@@ -95,7 +92,7 @@ const allItems = ref([
     expiry: '2026-04-25', daysLeft: 3,
     category: 'Other',     icon: '🥭', bg: '#f8f8f8',
     source: 'donation', donorName: 'Dewi Lestari',
-    status: 'available',
+    status: 'reserved', claimedBy: 'Another User',
     notes: 'Very sweet Harum Manis variety.',
   },
   {
@@ -165,16 +162,13 @@ const filteredItems = computed(() => {
     // Category filter
     const matchCat = !filterCategory.value || item.category === filterCategory.value
 
-    // Source filter
-    const matchSource = !filterSource.value || item.source === filterSource.value
-
     // Expiry filter
     const matchExpiry = !filterExpiry.value || item.daysLeft <= parseInt(filterExpiry.value)
 
     // Storage type filter (UC 1.2.1-11)
     const matchStorage = !filterStorage.value || item.storageType === filterStorage.value
 
-    return matchText && matchCat && matchSource && matchExpiry && matchStorage
+    return matchText && matchCat && matchExpiry && matchStorage
   })
 
   if (sortBy.value === 'expiry') items = [...items].sort((a, b) => a.daysLeft - b.daysLeft)
@@ -183,13 +177,12 @@ const filteredItems = computed(() => {
 })
 
 const hasActiveFilters = computed(() =>
-  filterCategory.value || filterSource.value || filterExpiry.value || filterStorage.value || searchQuery.value
+  filterCategory.value || filterExpiry.value || filterStorage.value || searchQuery.value
 )
 
 function clearFilters() {
   searchQuery.value    = ''
   filterCategory.value = ''
-  filterSource.value   = ''
   filterExpiry.value   = ''
   filterStorage.value  = ''
 }
@@ -250,46 +243,13 @@ function markAsUsed(item) {
   closeDetail()
 }
 
-function flagForDonation(item) {
-  const idx = myInventory.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) myInventory.value[idx] = { ...myInventory.value[idx], shared: true }
-  const exists = allItems.value.some(i => i.id === item.id)
-  if (!exists) {
-    allItems.value.unshift({
-      ...item, source: 'donation', donorName: CURRENT_USER,
-      status: 'available', shared: undefined,
-    })
-  }
-  if (detailItem.value?.id === item.id) detailItem.value = { ...detailItem.value, shared: true }
-  showConfirm('📤 Item flagged for donation and listed in the community browse.')
-}
 
 function addToMealPlan(item) {
-  showConfirm(`📋 "${item.name}" has been added to your meal plan.`)
+  showConfirm(`${item.name} has been added to your meal plan.`)
 }
 
-// ── Claim Confirmation Pop Up
-const showClaimModal   = ref(false)
-const claimTargetItem  = ref(null)
-const claimPickupTime  = ref('')
-const claimNote        = ref('')
-const claimSubmitted   = ref(false)
-
-function openClaimModal(item) {
-  claimTargetItem.value = item
-  claimPickupTime.value = ''
-  claimNote.value       = ''
-  claimSubmitted.value  = false
-  showClaimModal.value  = true
-}
-
-function closeClaimModal() {
-  showClaimModal.value = false
-  claimTargetItem.value = null
-}
-
-function submitClaim() {
-  const item = claimTargetItem.value
+// ── Claim Action ──
+function submitClaim(item) {
   if (!item) return
 
   // Update status → reserved in allItems
@@ -299,8 +259,6 @@ function submitClaim() {
       ...allItems.value[idx],
       status: 'reserved',
       claimedBy: CURRENT_USER,
-      preferredPickup: claimPickupTime.value,
-      claimNote: claimNote.value,
     }
   }
   // Sync detailItem if open
@@ -309,11 +267,9 @@ function submitClaim() {
       ...detailItem.value,
       status: 'reserved',
       claimedBy: CURRENT_USER,
-      preferredPickup: claimPickupTime.value,
-      claimNote: claimNote.value,
     }
   }
-  claimSubmitted.value = true
+  showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
 }
 
 // Cancel Claim
@@ -331,7 +287,7 @@ function cancelClaim(item) {
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, status: 'available', claimedBy: undefined }
   }
-  showConfirm('↩️ Your claim has been cancelled. The item is now available again.')
+  showConfirm('Your claim has been cancelled. The item is now available again.')
 }
 
 // ── Share Toggle (Inventory)
@@ -344,61 +300,10 @@ function toggleShare(item) {
   )
 }
 
-const showCreateModal = ref(false)
-const createErrors    = ref({})
-
-const emptyForm = () => ({
-  name: '', qty: '', address: 'My Home', storageLocation: '', expiry: '', category: 'Other', notes: '',
-})
-const createForm = ref(emptyForm())
-
-function openCreate() {
-  createForm.value   = emptyForm()
-  createErrors.value = {}
-  showCreateModal.value = true
-}
-function closeCreate() { showCreateModal.value = false }
-
-function validateCreate() {
-  const e = {}
-  if (!createForm.value.name.trim())    e.name    = 'Item name is required.'
-  if (!createForm.value.qty.trim())     e.qty     = 'Quantity is required.'
-  if (!createForm.value.address.trim()) e.address = 'Pickup address is required.'
-  if (!createForm.value.expiry)         e.expiry  = 'Expiry date is required.'
-  createErrors.value = e
-  return Object.keys(e).length === 0
-}
-
-function submitCreate() {
-  if (!validateCreate()) return
-  const cat = CATEGORIES.find(c => c.label === createForm.value.category) || CATEGORIES[CATEGORIES.length - 1]
-  const newItem = {
-    id:              nextId++,
-    name:            createForm.value.name.trim(),
-    qty:             createForm.value.qty.trim(),
-    storageLocation: createForm.value.storageLocation.trim(),
-    address:         createForm.value.address.trim(),
-    expiry:          createForm.value.expiry,
-    daysLeft:        computeDaysLeft(createForm.value.expiry),
-    category:        cat.label,
-    icon:            cat.icon,
-    bg:              cat.bg,
-    notes:           createForm.value.notes.trim(),
-    shared:          false,
-    status:          'available',
-  }
-  myInventory.value.unshift({ ...newItem })
-  closeCreate()
-  activeTab.value = 'inventory'
-}
-
-const selectedCatIcon = computed(() => {
-  return CATEGORIES.find(c => c.label === createForm.value.category)?.icon ?? '🍱'
-})
 </script>
 
 <template>
-  <AppLayout current-page="browse" :unread-count="unreadCount" user-name="John Doe" @navigate="emit('navigate', $event)">
+  <AppLayout current-page="browse" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
     <div class="browse-page">
 
       <!-- ── Page Header ── -->
@@ -487,9 +392,7 @@ const selectedCatIcon = computed(() => {
         <!-- Sort strip -->
         <div class="sort-strip">
           <span class="sort-badge">
-            {{ sortBy === 'expiry' ? '📅 Sorted by Expiry Date' : '🔤 Sorted by Name' }}
-            <span v-if="filterSource === 'donation'"> · Donations Only</span>
-            <span v-else-if="filterSource === 'own'"> · Own Inventory</span>
+            {{ sortBy === 'expiry' ? 'Sorted by Expiry Date' : 'Sorted by Name' }}
             <span v-if="filterExpiry"> · Expiring ≤ {{ filterExpiry }}d</span>
           </span>
           <span class="results-count">{{ filteredItems.length }} item{{ filteredItems.length !== 1 ? 's' : '' }} found</span>
@@ -497,10 +400,8 @@ const selectedCatIcon = computed(() => {
 
         <!-- Empty state (UC 1.2.1-11 message) -->
         <div v-if="filteredItems.length === 0" class="empty-state">
-          <div class="empty-icon">🔍</div>
           <h3>No items found</h3>
           <p>No items match the selected filters. Please adjust your filters.</p>
-          <button v-if="hasActiveFilters" class="clear-filters-btn mt-1" @click="clearFilters">Clear Filters</button>
         </div>
 
         <!-- Food grid -->
@@ -551,13 +452,13 @@ const selectedCatIcon = computed(() => {
               </div>
               <!-- Reserved by someone else -->
               <div v-else-if="item.status === 'reserved'" class="reserved-badge reserved-badge--other">
-                🔒 Reserved
+                Reserved
               </div>
               <!-- Available & not my own item → show claim button -->
               <button
                 v-else-if="item.status === 'available' && item.source !== 'own'"
                 class="claim-btn"
-                @click="openClaimModal(item)"
+                @click="submitClaim(item)"
               >Request / Claim Item</button>
               <!-- My own item -->
               <div v-else-if="item.source === 'own'" class="own-badge">
@@ -704,17 +605,16 @@ const selectedCatIcon = computed(() => {
 
                 <!-- BROWSE context: donation item -->
                 <template v-if="detailContext === 'browse'">
-                  <!-- Available & not mine: Claim button (UC 1.2.1-13) -->
                   <button
                     v-if="detailItem.status === 'available' && detailItem.source !== 'own'"
                     class="claim-btn claim-btn--lg"
-                    @click="openClaimModal(detailItem)"
+                    @click="submitClaim(detailItem)"
                   >Request / Claim Item</button>
 
                   <!-- Reserved by me: cancel (UC 1.2.1-13) -->
                   <div v-else-if="detailItem.status === 'reserved' && detailItem.claimedBy === CURRENT_USER" class="two-btn-row">
                     <div class="reserved-badge reserved-badge--lg">Reserved by You</div>
-                    <button class="cancel-claim-btn cancel-claim-btn--lg" @click="cancelClaim(detailItem)">↩️ Cancel Claim</button>
+                    <button class="cancel-claim-btn cancel-claim-btn--lg" @click="cancelClaim(detailItem)">Cancel Claim</button>
                   </div>
 
                   <!-- Reserved by someone else -->
@@ -733,11 +633,11 @@ const selectedCatIcon = computed(() => {
                   <div class="action-group-label">Actions</div>
                   <div class="action-grid">
                     <button class="action-btn action-btn--used" @click="markAsUsed(detailItem)">
-                      <span class="action-btn-icon">✅</span>
+                      <span class="action-btn-icon"></span>
                       <span>Mark as Used</span>
                     </button>
                     <button class="action-btn action-btn--meal" @click="addToMealPlan(detailItem)">
-                      <span class="action-btn-icon">📋</span>
+                      <span class="action-btn-icon"></span>
                       <span>Add to Meal Plan</span>
                     </button>
                   </div>
@@ -751,164 +651,7 @@ const selectedCatIcon = computed(() => {
       </Transition>
     </Teleport>
 
-    <!-- ══════════════════════════════════════════════════
-         CLAIM CONFIRMATION MODAL (UC 1.2.1-13)
-    ═══════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showClaimModal" class="modal-overlay" @click.self="closeClaimModal">
-          <div class="modal-sheet claim-modal" role="dialog" aria-modal="true">
-            <button class="modal-close" aria-label="Close" @click="closeClaimModal">✕</button>
 
-            <!-- Success state (UC 1.2.1-13 confirmation) -->
-            <div v-if="claimSubmitted" class="claim-success">
-              <div class="claim-success-icon">🎉</div>
-              <h2 class="claim-success-title">Claim Submitted!</h2>
-              <p class="claim-success-msg">
-                Your claim has been submitted. The donor will be notified.
-              </p>
-              <div v-if="claimPickupTime" class="claim-detail-pill">
-                ⏰ Preferred pickup: {{ claimPickupTime }}
-              </div>
-              <button class="claim-btn claim-btn--lg" style="margin-top:1.25rem;" @click="closeClaimModal">Done</button>
-            </div>
-
-            <!-- Form state -->
-            <template v-else>
-              <div class="claim-modal-header">
-                <span class="claim-item-icon">{{ claimTargetItem?.icon }}</span>
-                <div>
-                  <h2 class="create-title">Request / Claim Item</h2>
-                  <p class="create-sub">{{ claimTargetItem?.name }}</p>
-                </div>
-              </div>
-
-              <div class="create-body">
-                <!-- Item summary -->
-                <div class="claim-summary-grid">
-                  <div class="info-card">
-                    <span class="info-label">📦 Quantity</span>
-                    <span class="info-value">{{ claimTargetItem?.qty }}</span>
-                  </div>
-                  <div class="info-card">
-                    <span class="info-label">📅 Expires</span>
-                    <span class="info-value">{{ claimTargetItem?.expiry }}</span>
-                  </div>
-                  <div class="info-card info-card--wide">
-                    <span class="info-label">📍 Pickup From</span>
-                    <span class="info-value">{{ claimTargetItem?.address }}</span>
-                  </div>
-                </div>
-
-                <!-- Preferred pickup time -->
-                <div class="form-group">
-                  <label class="form-label" for="claim-pickup">⏰ Preferred Pickup Time <span class="optional">(optional)</span></label>
-                  <input
-                    id="claim-pickup"
-                    v-model="claimPickupTime"
-                    class="form-input"
-                    type="text"
-                    placeholder="e.g. Tomorrow morning, 9am – 11am"
-                  />
-                </div>
-
-                <!-- Note to donor -->
-                <div class="form-group">
-                  <label class="form-label" for="claim-note">📝 Note to Donor <span class="optional">(optional)</span></label>
-                  <textarea
-                    id="claim-note"
-                    v-model="claimNote"
-                    class="form-input form-textarea"
-                    rows="3"
-                    placeholder="Any message or special arrangement for the donor…"
-                  />
-                </div>
-
-                <div class="create-actions">
-                  <button type="button" class="detail-close-btn cancel-width" @click="closeClaimModal">Cancel</button>
-                  <button type="button" class="claim-btn claim-btn--lg" style="flex:1;" @click="submitClaim">
-                    Confirm Claim Request
-                  </button>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ══════════════════════════════════════════════════
-         CREATE ITEM MODAL
-    ═══════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showCreateModal" class="modal-overlay" @click.self="closeCreate">
-          <div class="modal-sheet create-modal" role="dialog" aria-modal="true">
-            <button class="modal-close" aria-label="Close" @click="closeCreate">✕</button>
-
-            <div class="create-header">
-              <span class="create-header-icon">{{ selectedCatIcon }}</span>
-              <div>
-                <h2 class="create-title">Add Food Item</h2>
-                <p class="create-sub">Fill in the details to add to your inventory</p>
-              </div>
-            </div>
-
-            <div class="create-body">
-              <form id="create-item-form" @submit.prevent="submitCreate">
-                <div class="form-group" :class="{ error: createErrors.name }">
-                  <label class="form-label" for="ci-name">Item Name *</label>
-                  <input id="ci-name" v-model="createForm.name" class="form-input" type="text" placeholder="e.g. Banana Bread" autocomplete="off"/>
-                  <span v-if="createErrors.name" class="form-error">{{ createErrors.name }}</span>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label" for="ci-category">Category</label>
-                    <select id="ci-category" v-model="createForm.category" class="form-input form-select">
-                      <option v-for="cat in CATEGORIES" :key="cat.label" :value="cat.label">{{ cat.icon }} {{ cat.label }}</option>
-                    </select>
-                  </div>
-                  <div class="form-group" :class="{ error: createErrors.qty }">
-                    <label class="form-label" for="ci-qty">Quantity *</label>
-                    <input id="ci-qty" v-model="createForm.qty" class="form-input" type="text" placeholder="e.g. 1 loaf"/>
-                    <span v-if="createErrors.qty" class="form-error">{{ createErrors.qty }}</span>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group" :class="{ error: createErrors.expiry }">
-                    <label class="form-label" for="ci-expiry">Expiry Date *</label>
-                    <input id="ci-expiry" v-model="createForm.expiry" class="form-input" type="date"/>
-                    <span v-if="createErrors.expiry" class="form-error">{{ createErrors.expiry }}</span>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ci-storage">Storage Location <span class="optional">(optional)</span></label>
-                    <input id="ci-storage" v-model="createForm.storageLocation" class="form-input" type="text" placeholder="e.g. Refrigerator"/>
-                  </div>
-                </div>
-
-                <div class="form-group" :class="{ error: createErrors.address }">
-                  <label class="form-label" for="ci-address">Pickup Address *</label>
-                  <input id="ci-address" v-model="createForm.address" class="form-input" type="text" placeholder="e.g. Jl. Sudirman No. 12"/>
-                  <span v-if="createErrors.address" class="form-error">{{ createErrors.address }}</span>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label" for="ci-notes">Notes <span class="optional">(optional)</span></label>
-                  <textarea id="ci-notes" v-model="createForm.notes" class="form-input form-textarea" rows="3" placeholder="Allergen info, storage tips, pickup times…"/>
-                </div>
-
-                <div class="create-actions">
-                  <button type="button" class="detail-close-btn cancel-width" @click="closeCreate">Cancel</button>
-                  <button type="submit" class="claim-btn claim-btn--lg" style="flex:1;">Add Item</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
   </AppLayout>
 </template>
@@ -1519,14 +1262,6 @@ const selectedCatIcon = computed(() => {
   padding: 6px 16px;
 }
 
-/* ── Create modal ── */
-.create-modal { max-width: 540px; }
-.create-header { display: flex; align-items: center; gap: 1rem; padding: 1.5rem 1.5rem 0; }
-.create-header-icon { font-size: 3rem; line-height: 1; }
-.create-title { font-size: 1.25rem; font-weight: 800; color: #1a1a1a; margin-bottom: 2px; background: none; -webkit-text-fill-color: unset; }
-.create-sub   { font-size: 0.78rem; color: #9aaa9a; }
-.create-body  { padding: 1.1rem 1.5rem 1.5rem; }
-
 /* Forms */
 .form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 0.8rem; }
@@ -1550,9 +1285,6 @@ const selectedCatIcon = computed(() => {
 .form-select  { cursor: pointer; }
 .form-textarea { resize: vertical; min-height: 76px; }
 .form-error   { font-size: 0.72rem; color: #ef4444; font-weight: 500; }
-
-.create-actions { display: flex; gap: 0.6rem; margin-top: 0.25rem; }
-.cancel-width   { flex: 0 0 auto; width: auto; padding: 13px 20px; }
 
 /* ── Modal transition ── */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }

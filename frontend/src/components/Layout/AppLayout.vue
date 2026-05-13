@@ -26,7 +26,7 @@ const navItems = [
   { id: 'settings',      label: 'Settings',      icon: '⚙️' },
 ]
 
-// Mobile bottom tabs
+// Mobile bottom tabs: prioritised order
 const bottomNavItems = [
   { id: 'inventory',     label: 'Inventory',     icon: '📦' },
   { id: 'meal-planner',  label: 'Meal Planner',  icon: '📅' },
@@ -186,7 +186,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
             <!-- Footer -->
             <div class="sheet-footer">
               <button class="sheet-view-all" @click="viewAllNotifs">
-                View all notifications
+                View all notifications →
               </button>
               <button class="sheet-close" @click="closeMobilePopup">Close</button>
             </div>

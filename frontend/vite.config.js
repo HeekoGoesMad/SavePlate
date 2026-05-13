@@ -10,9 +10,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
-  // ── Vitest configuration ─────────────────────────────────
   test: {
-    environment: 'jsdom',   // simulate browser DOM
-    globals: true,          // use describe/it/expect without importing
+    environment: 'node',
+    globals: true,
   },
 })
