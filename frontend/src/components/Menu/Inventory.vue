@@ -7,11 +7,11 @@
 import { ref, computed } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
-import { useToast }         from '@/composables/useToast'
+import { useToast } from '@/composables/useToast'
 
 const emit = defineEmits(['navigate'])
 
-const { unreadCount }   = useNotifications()
+const { unreadCount } = useNotifications()
 const { showToast } = useToast()
 
 // ── CONSTANTS ────────────────────────────────────────────
@@ -107,31 +107,32 @@ function daysUntilExpiry(dateStr) {
 }
 
 // Returns { label, color, bgColor } for the expiry badge
-function getExpiryStatus(dateStr) {
-  const days = daysUntilExpiry(dateStr)
-  if (days < 0)  return { label: 'Expired',            color: '#dc2626', bgColor: '#fef2f2' }
-  if (days === 0) return { label: 'Expires Today',      color: '#f59e0b', bgColor: '#fffbeb' }
-  if (days <= 3)  return { label: `${days}d left`,      color: '#f59e0b', bgColor: '#fffbeb' }
-  return           { label: `${days}d left`,             color: '#22c55e', bgColor: '#f0fdf4' }
+function getExpiryStatus(item) {
+  if (item.status === 'used') return { label: 'Used', color: '#6b7280', bgColor: '#f3f4f6' }
+  const days = daysUntilExpiry(item.expiryDate)
+  if (days < 0) return { label: 'Expired', color: '#dc2626', bgColor: '#fef2f2' }
+  if (days === 0) return { label: 'Expires Today', color: '#f59e0b', bgColor: '#fffbeb' }
+  if (days <= 3) return { label: `${days}d left`, color: '#f59e0b', bgColor: '#fffbeb' }
+  return { label: `${days}d left`, color: '#22c55e', bgColor: '#f0fdf4' }
 }
 
 // ── COMPUTED: Summary Info Boxes (Dashboard‐style cards) ──
 const summaryCards = computed(() => {
-  const active      = items.value.filter(i => i.status === 'available')
+  const active = items.value.filter(i => i.status === 'available')
   const expiringSoon = active.filter(i => daysUntilExpiry(i.expiryDate) <= 3)
-  const usedCount   = items.value.filter(i => i.status === 'used').length
+  const usedCount = items.value.filter(i => i.status === 'used').length
 
   return [
-    { label: 'Total Items',   value: active.length,       unit: 'in inventory', icon: '📦', color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Total Items', value: active.length, unit: 'in inventory', icon: '📦', color: '#3b82f6', bg: '#eff6ff' },
     { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: '⚠️', color: '#f59e0b', bg: '#fffbeb' },
-    { label: 'Items Used',    value: usedCount,            unit: 'saved from waste', icon: '✅', color: '#22c55e', bg: '#f0fdf4' },
+    { label: 'Items Used', value: usedCount, unit: 'saved from waste', icon: '✅', color: '#22c55e', bg: '#f0fdf4' },
   ]
 })
 
 // ── FILTER / SORT ─────────────────────────────────────────
-const sortOption     = ref('expiryDate')  // 'expiryDate' | 'name' | 'category' | 'dateAdded'
+const sortOption = ref('expiryDate')  // 'expiryDate' | 'name' | 'category' | 'dateAdded'
 const filterCategory = ref('All')         // 'All' or a specific category
-const filterStatus   = ref('available')   // 'available' | 'used'
+const filterStatus = ref('available')   // 'available' | 'used'
 
 // Only show items matching the selected status (active inventory or used history)
 const filteredItems = computed(() => {
@@ -170,9 +171,9 @@ function createEmptyItem() {
   return {
     name: '',
     category: '',
-    quantity: '',
+    quantity: 1,
     unit: 'pcs',
-    expiryDate: '',
+    expiryDate: getTodayString(),
     storageLocation: '',
     notes: '',
   }
@@ -273,13 +274,47 @@ function submitEditItem() {
   closeEditModal()
 }
 
+// ── CONFIRM MODAL LOGIC ───────────────────────────────────
+const showConfirmModal = ref(false)
+const confirmData = ref({
+  title: '',
+  message: '',
+  confirmText: '',
+  cancelText: 'Cancel',
+  onConfirm: null,
+  isDanger: false
+})
+
+function openConfirmModal({ title, message, confirmText, cancelText = 'Cancel', onConfirm, isDanger = false }) {
+  confirmData.value = { title, message, confirmText, cancelText, onConfirm, isDanger }
+  showConfirmModal.value = true
+}
+
+function closeConfirmModal() {
+  showConfirmModal.value = false
+  confirmData.value.onConfirm = null
+}
+
+function executeConfirm() {
+  if (confirmData.value.onConfirm) {
+    confirmData.value.onConfirm()
+  }
+  closeConfirmModal()
+}
+
 // ── MARK AS USED ──────────────────────────────────────────
 // (FR-2.3) Updates the item's status to 'used'
 // In a real app: PATCH /api/items/:id/status { status: 'used' }
 function markAsUsed(item) {
-  if (!confirm(`Mark "${item.name}" as fully used? This will update your savings record.`)) return
-  item.status = 'used'
-  showToast(`Great job! ${item.name} has been marked as used.`, 'success')
+  openConfirmModal({
+    title: 'Mark as Used',
+    message: `Mark "${item.name}" as fully used? This will update your savings record.`,
+    confirmText: 'Mark as Used',
+    onConfirm: () => {
+      item.status = 'used'
+      showToast(`Great job! ${item.name} has been marked as used.`, 'success')
+    }
+  })
 }
 
 // ── DELETE ITEM ───────────────────────────────────────────
@@ -287,31 +322,45 @@ function markAsUsed(item) {
 // In a real app: DELETE /api/items/:id
 function deleteItem(item) {
   if (item.status === 'reserved') {
-    alert('This item is reserved for your meal plan. Please remove it from the plan before deleting.')
+    openConfirmModal({
+      title: 'Action Denied',
+      message: 'This item is reserved for your meal plan. Please remove it from the plan before deleting.',
+      confirmText: 'OK',
+      cancelText: '',
+      onConfirm: () => { }
+    })
     return
   }
-  if (!confirm(`Are you sure you want to remove ${item.name} from your inventory? This cannot be undone.`)) return
-  items.value = items.value.filter(i => i.id !== item.id)
-  showToast('Item removed from inventory.', 'success')
+
+  openConfirmModal({
+    title: 'Delete Item',
+    message: `Are you sure you want to remove ${item.name} from your inventory? This cannot be undone.`,
+    confirmText: 'Delete',
+    isDanger: true,
+    onConfirm: () => {
+      items.value = items.value.filter(i => i.id !== item.id)
+      showToast('Item removed from inventory.', 'success')
+    }
+  })
 }
 
 // ── DONATE MODAL ──────────────────────────────────────────
 // (FR-2.4) Converts an inventory item into a donation listing
 const showDonateModal = ref(false)
-const donateTarget    = ref(null)     // which item is being donated
-const donateForm      = ref({ location: '', availability: '' })
-const donateError     = ref('')
+const donateTarget = ref(null)     // which item is being donated
+const donateForm = ref({ location: '', availability: '' })
+const donateError = ref('')
 
 function openDonateModal(item) {
   donateTarget.value = item
-  donateForm.value   = { location: '', availability: '' }
-  donateError.value  = ''
+  donateForm.value = { location: '', availability: '' }
+  donateError.value = ''
   showDonateModal.value = true
 }
 
 function closeDonateModal() {
   showDonateModal.value = false
-  donateTarget.value    = null
+  donateTarget.value = null
 }
 
 // Converts item to donation and updates its status
@@ -337,21 +386,22 @@ function submitDonate() {
 function categoryIcon(category) {
   const map = {
     Vegetables: '🥬',
-    Dairy:      '🥛',
-    Canned:     '🥫',
-    Frozen:     '🧊',
-    Bakery:     '🍞',
-    Fruits:     '🍎',
-    Protein:    '🥚',
-    Grains:     '🍚',
-    Other:      '📦',
+    Dairy: '🥛',
+    Canned: '🥫',
+    Frozen: '🧊',
+    Bakery: '🍞',
+    Fruits: '🍎',
+    Protein: '🥚',
+    Grains: '🍚',
+    Other: '📦',
   }
   return map[category] ?? '🍽️'
 }
 </script>
 
 <template>
-  <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana"
+    @navigate="emit('navigate', $event)">
     <div class="inventory-page">
 
       <!-- ══ PAGE HEADER ══════════════════════════════════ -->
@@ -369,12 +419,8 @@ function categoryIcon(category) {
       <!-- ══ INFO BOXES (Summary Cards) ══════════════════════ -->
       <!-- Match Dashboard summary card style -->
       <div class="cards-row">
-        <div
-          v-for="card in summaryCards"
-          :key="card.label"
-          class="summary-card"
-          :style="{ '--card-color': card.color, '--card-bg': card.bg }"
-        >
+        <div v-for="card in summaryCards" :key="card.label" class="summary-card"
+          :style="{ '--card-color': card.color, '--card-bg': card.bg }">
           <div class="card-icon">{{ card.icon }}</div>
           <div class="card-body">
             <div class="card-value">{{ card.value }}</div>
@@ -431,24 +477,17 @@ function categoryIcon(category) {
 
       <!-- Item grid (matches BrowseFood card layout) -->
       <div v-else class="food-grid">
-        <div
-          v-for="item in filteredItems"
-          :key="item.id"
-          class="food-card"
-          :class="{ urgent: daysUntilExpiry(item.expiryDate) <= 2 }"
-          :style="{ '--card-bg': getExpiryStatus(item.expiryDate).bgColor }"
-        >
+        <div v-for="item in filteredItems" :key="item.id" class="food-card"
+          :class="{ urgent: item.status !== 'used' && daysUntilExpiry(item.expiryDate) <= 2 }"
+          :style="{ '--card-bg': getExpiryStatus(item).bgColor }">
           <!-- Card top: icon + expiry badge -->
-          <div class="card-top" :style="{ background: getExpiryStatus(item.expiryDate).bgColor }">
+          <div class="card-top" :style="{ background: getExpiryStatus(item).bgColor }">
             <span class="food-icon">{{ categoryIcon(item.category) }}</span>
-            <span
-              class="urgency-chip"
-              :style="{
-                background: getExpiryStatus(item.expiryDate).color + '18',
-                color: getExpiryStatus(item.expiryDate).color,
-                borderColor: getExpiryStatus(item.expiryDate).color + '40'
-              }"
-            >{{ getExpiryStatus(item.expiryDate).label }}</span>
+            <span class="urgency-chip" :style="{
+              background: getExpiryStatus(item).color + '18',
+              color: getExpiryStatus(item).color,
+              borderColor: getExpiryStatus(item).color + '40'
+            }">{{ getExpiryStatus(item).label }}</span>
           </div>
 
           <!-- Card body -->
@@ -467,7 +506,8 @@ function categoryIcon(category) {
               </div>
               <div class="card-meta-row">
                 <span class="meta-icon">📅</span>
-                <span class="meta-text">Expires {{ item.expiryDate }}</span>
+                <span class="meta-text" v-if="item.status === 'used'">Status: Consumed</span>
+                <span class="meta-text" v-else>Expires {{ item.expiryDate }}</span>
               </div>
               <div v-if="item.notes" class="card-meta-row">
                 <span class="meta-icon">📝</span>
@@ -513,13 +553,8 @@ function categoryIcon(category) {
               <!-- Food Name (required) -->
               <div class="form-group">
                 <label for="add-name">Food Name <span class="required">*</span></label>
-                <input
-                  id="add-name"
-                  v-model="newItem.name"
-                  type="text"
-                  placeholder="e.g. Fresh Spinach"
-                  class="form-input"
-                />
+                <input id="add-name" v-model="newItem.name" type="text" placeholder="e.g. Fresh Spinach"
+                  class="form-input" />
               </div>
 
               <!-- Category (required) -->
@@ -535,14 +570,8 @@ function categoryIcon(category) {
               <div class="form-row">
                 <div class="form-group">
                   <label for="add-qty">Quantity <span class="required">*</span></label>
-                  <input
-                    id="add-qty"
-                    v-model="newItem.quantity"
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 200"
-                    class="form-input"
-                  />
+                  <input id="add-qty" v-model.number="newItem.quantity" type="number" min="1" placeholder="e.g. 200"
+                    class="form-input" />
                 </div>
                 <div class="form-group">
                   <label for="add-unit">Unit <span class="required">*</span></label>
@@ -555,13 +584,8 @@ function categoryIcon(category) {
               <!-- Expiry Date (required, must not be in the past) -->
               <div class="form-group">
                 <label for="add-expiry">Expiry Date <span class="required">*</span></label>
-                <input
-                  id="add-expiry"
-                  v-model="newItem.expiryDate"
-                  type="date"
-                  :min="getTodayString()"
-                  class="form-input"
-                />
+                <input id="add-expiry" v-model="newItem.expiryDate" type="date" :min="getTodayString()"
+                  class="form-input" />
               </div>
 
               <!-- Storage Location (optional) -->
@@ -578,13 +602,8 @@ function categoryIcon(category) {
               <!-- Notes (optional) -->
               <div class="form-group">
                 <label for="add-notes">Notes <span class="optional">(optional)</span></label>
-                <textarea
-                  id="add-notes"
-                  v-model="newItem.notes"
-                  rows="2"
-                  placeholder="e.g. Opened on April 18"
-                  class="form-input"
-                ></textarea>
+                <textarea id="add-notes" v-model="newItem.notes" rows="2" placeholder="e.g. Opened on April 18"
+                  class="form-input"></textarea>
               </div>
             </div>
 
@@ -630,7 +649,7 @@ function categoryIcon(category) {
               <div class="form-row">
                 <div class="form-group">
                   <label for="edit-qty">Quantity <span class="required">*</span></label>
-                  <input id="edit-qty" v-model="editItem.quantity" type="number" min="1" class="form-input" />
+                  <input id="edit-qty" v-model.number="editItem.quantity" type="number" min="1" class="form-input" />
                 </div>
                 <div class="form-group">
                   <label for="edit-unit">Unit</label>
@@ -642,13 +661,8 @@ function categoryIcon(category) {
 
               <div class="form-group">
                 <label for="edit-expiry">Expiry Date <span class="required">*</span></label>
-                <input
-                  id="edit-expiry"
-                  v-model="editItem.expiryDate"
-                  type="date"
-                  :min="getTodayString()"
-                  class="form-input"
-                />
+                <input id="edit-expiry" v-model="editItem.expiryDate" type="date" :min="getTodayString()"
+                  class="form-input" />
               </div>
 
               <div class="form-group">
@@ -704,25 +718,15 @@ function categoryIcon(category) {
               <!-- Pickup Location (required) -->
               <div class="form-group">
                 <label for="donate-location">Pickup Location <span class="required">*</span></label>
-                <input
-                  id="donate-location"
-                  v-model="donateForm.location"
-                  type="text"
-                  placeholder="e.g. Jl. Diponegoro No. 12, Denpasar"
-                  class="form-input"
-                />
+                <input id="donate-location" v-model="donateForm.location" type="text"
+                  placeholder="e.g. Jl. Diponegoro No. 12, Denpasar" class="form-input" />
               </div>
 
               <!-- Availability Window (required) -->
               <div class="form-group">
                 <label for="donate-avail">Pickup Availability <span class="required">*</span></label>
-                <input
-                  id="donate-avail"
-                  v-model="donateForm.availability"
-                  type="text"
-                  placeholder="e.g. Weekdays 3PM – 7PM"
-                  class="form-input"
-                />
+                <input id="donate-avail" v-model="donateForm.availability" type="text"
+                  placeholder="e.g. Weekdays 3PM – 7PM" class="form-input" />
               </div>
             </div>
 
@@ -735,6 +739,32 @@ function categoryIcon(category) {
       </Transition>
     </Teleport>
 
+
+    <!-- ══════════════════════════════════════════════════
+         MODAL: Confirmation (Generic)
+    ═══════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal">
+          <div class="modal" role="dialog" aria-labelledby="modal-confirm-title">
+            <div class="modal-header">
+              <h3 id="modal-confirm-title">{{ confirmData.title }}</h3>
+              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size: 0.9rem; color: #3a4a3a; line-height: 1.5; margin: 0;">{{ confirmData.message }}</p>
+            </div>
+            <div class="modal-footer">
+              <button v-if="confirmData.cancelText" class="btn-secondary" @click="closeConfirmModal">{{
+                confirmData.cancelText }}</button>
+              <button :class="confirmData.isDanger ? 'btn-danger' : 'btn-primary'" @click="executeConfirm">
+                {{ confirmData.confirmText }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
   </AppLayout>
 </template>
@@ -764,7 +794,12 @@ function categoryIcon(category) {
   justify-content: space-between;
   gap: 1rem;
 }
-.header-text { flex: 1; min-width: 0; }
+
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .page-header h1 {
   font-size: 1.5rem;
   font-weight: 800;
@@ -775,7 +810,11 @@ function categoryIcon(category) {
   margin-bottom: 3px;
   line-height: 1.2;
 }
-.sub { font-size: 0.78rem; color: #9aaa9a; }
+
+.sub {
+  font-size: 0.78rem;
+  color: #9aaa9a;
+}
 
 /* ── Summary Cards Row (same as Dashboard) ── */
 .cards-row {
@@ -783,6 +822,7 @@ function categoryIcon(category) {
   grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
 }
+
 .summary-card {
   background: var(--card-bg, #fff);
   border: 1px solid #e8ede8;
@@ -793,14 +833,35 @@ function categoryIcon(category) {
   gap: 0.75rem;
   transition: transform 0.2s, box-shadow 0.2s;
 }
+
 .summary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
 }
-.card-icon  { font-size: 1.6rem; line-height: 1; }
-.card-value { font-size: 1.6rem; font-weight: 900; color: var(--card-color, #3b82f6); line-height: 1; }
-.card-label { font-size: 0.75rem; font-weight: 700; color: #2a2a2a; margin-top: 3px; }
-.card-unit  { font-size: 0.65rem; color: #9aaa9a; }
+
+.card-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.card-value {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--card-color, #3b82f6);
+  line-height: 1;
+}
+
+.card-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #2a2a2a;
+  margin-top: 3px;
+}
+
+.card-unit {
+  font-size: 0.65rem;
+  color: #9aaa9a;
+}
 
 /* ── Controls Bar (Filter + Sort) ── */
 .controls-bar {
@@ -809,17 +870,20 @@ function categoryIcon(category) {
   align-items: center;
   flex-wrap: wrap;
 }
+
 .filter-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 .control-label {
   font-size: 0.8rem;
   font-weight: 600;
   color: #555;
   white-space: nowrap;
 }
+
 .select-control {
   padding: 6px 10px;
   border: 1.5px solid #e8ede8;
@@ -832,7 +896,10 @@ function categoryIcon(category) {
   outline: none;
   transition: border-color 0.2s;
 }
-.select-control:focus { border-color: #2da12b; }
+
+.select-control:focus {
+  border-color: #2da12b;
+}
 
 /* ── Panel (same style as Dashboard .panel) ── */
 .panel {
@@ -841,17 +908,20 @@ function categoryIcon(category) {
   border-radius: 16px;
   padding: 1.1rem;
 }
+
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.9rem;
 }
+
 .panel-head h2 {
   font-size: 0.92rem;
   font-weight: 700;
   color: #1a1a1a;
 }
+
 .item-count {
   font-size: 0.75rem;
   color: #9aaa9a;
@@ -869,8 +939,15 @@ function categoryIcon(category) {
   padding: 2.5rem 1rem;
   text-align: center;
 }
-.empty-icon { font-size: 2.5rem; }
-.empty-state p { font-size: 0.88rem; color: #7a8a7a; }
+
+.empty-icon {
+  font-size: 2.5rem;
+}
+
+.empty-state p {
+  font-size: 0.88rem;
+  color: #7a8a7a;
+}
 
 /* ── Food cards grid (matches BrowseFood) ── */
 .food-grid {
@@ -888,11 +965,13 @@ function categoryIcon(category) {
   flex-direction: column;
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
+
 .food-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.09);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.09);
   border-color: #c8dcc8;
 }
+
 .food-card.urgent {
   border-left: 3px solid #ef4444;
 }
@@ -903,7 +982,12 @@ function categoryIcon(category) {
   justify-content: space-between;
   padding: 1rem 1rem 0.75rem;
 }
-.food-icon { font-size: 2rem; line-height: 1; }
+
+.food-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .urgency-chip {
   font-size: 0.68rem;
   font-weight: 700;
@@ -917,6 +1001,7 @@ function categoryIcon(category) {
   padding: 0 1rem 0.75rem;
   flex: 1;
 }
+
 .card-category {
   font-size: 0.65rem;
   font-weight: 800;
@@ -925,6 +1010,7 @@ function categoryIcon(category) {
   color: #2da12b;
   margin-bottom: 4px;
 }
+
 .card-name {
   font-size: 1rem;
   font-weight: 800;
@@ -940,12 +1026,19 @@ function categoryIcon(category) {
   flex-direction: column;
   gap: 4px;
 }
+
 .card-meta-row {
   display: flex;
   align-items: flex-start;
   gap: 6px;
 }
-.meta-icon { font-size: 0.82rem; flex-shrink: 0; line-height: 1.5; }
+
+.meta-icon {
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
 .meta-text {
   font-size: 0.78rem;
   color: #5a6a5a;
@@ -962,6 +1055,7 @@ function categoryIcon(category) {
   flex-wrap: wrap;
   gap: 0.35rem;
 }
+
 .btn-action {
   padding: 5px 10px;
   font-size: 0.72rem;
@@ -973,14 +1067,37 @@ function categoryIcon(category) {
   transition: opacity 0.18s, transform 0.15s;
   white-space: nowrap;
 }
-.btn-action:hover { opacity: 0.8; transform: translateY(-1px); }
-.btn-action:active { transform: scale(0.95); }
 
-.btn-action.edit   { background: #eff6ff; color: #3b82f6; }
-.btn-action.donate { background: #f0faf0; color: #2da12b; }
-.btn-action.used   { background: #f0fdf4; color: #16a34a; }
+.btn-action:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
 
-.btn-action.delete { background: #fef2f2; color: #ef4444; font-size: 0.85rem; padding: 5px 8px; }
+.btn-action:active {
+  transform: scale(0.95);
+}
+
+.btn-action.edit {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.btn-action.donate {
+  background: #f0faf0;
+  color: #2da12b;
+}
+
+.btn-action.used {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.btn-action.delete {
+  background: #fef2f2;
+  color: #ef4444;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+}
 
 /* ── Primary & Secondary Buttons ── */
 .btn-primary {
@@ -996,8 +1113,15 @@ function categoryIcon(category) {
   transition: background 0.2s, transform 0.15s;
   white-space: nowrap;
 }
-.btn-primary:hover { background: #25881f; transform: translateY(-1px); }
-.btn-primary:active { transform: scale(0.97); }
+
+.btn-primary:hover {
+  background: #25881f;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
 
 .btn-secondary {
   background: #f0f4f0;
@@ -1011,7 +1135,10 @@ function categoryIcon(category) {
   cursor: pointer;
   transition: background 0.2s;
 }
-.btn-secondary:hover { background: #e2e8e2; }
+
+.btn-secondary:hover {
+  background: #e2e8e2;
+}
 
 .btn-donate {
   background: #2da12b;
@@ -1025,12 +1152,39 @@ function categoryIcon(category) {
   cursor: pointer;
   transition: background 0.2s;
 }
-.btn-donate:hover { background: #25881f; }
+
+.btn-donate:hover {
+  background: #25881f;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
 
 /* ── Modal Overlay ── */
 .modal-overlay {
   position: fixed;
-  inset: 0;                       /* top/right/bottom/left all = 0 */
+  inset: 0;
+  /* top/right/bottom/left all = 0 */
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -1047,7 +1201,7 @@ function categoryIcon(category) {
   max-width: 460px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
 }
@@ -1059,11 +1213,13 @@ function categoryIcon(category) {
   padding: 1.1rem 1.25rem 0.75rem;
   border-bottom: 1px solid #f0f4f0;
 }
+
 .modal-header h3 {
   font-size: 1rem;
   font-weight: 800;
   color: #1a1a1a;
 }
+
 .modal-close {
   background: #f0f4f0;
   border: none;
@@ -1077,7 +1233,10 @@ function categoryIcon(category) {
   justify-content: center;
   transition: background 0.15s;
 }
-.modal-close:hover { background: #e2e8e2; }
+
+.modal-close:hover {
+  background: #e2e8e2;
+}
 
 .modal-body {
   padding: 1rem 1.25rem;
@@ -1112,18 +1271,28 @@ function categoryIcon(category) {
   flex-direction: column;
   gap: 4px;
 }
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;
 }
+
 label {
   font-size: 0.8rem;
   font-weight: 600;
   color: #3a4a3a;
 }
-.required { color: #ef4444; }
-.optional { font-size: 0.72rem; font-weight: 400; color: #9aaa9a; }
+
+.required {
+  color: #ef4444;
+}
+
+.optional {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #9aaa9a;
+}
 
 .form-input {
   padding: 9px 12px;
@@ -1137,7 +1306,11 @@ label {
   transition: border-color 0.2s;
   resize: vertical;
 }
-.form-input:focus { border-color: #2da12b; box-shadow: 0 0 0 3px rgba(45,161,43,0.1); }
+
+.form-input:focus {
+  border-color: #2da12b;
+  box-shadow: 0 0 0 3px rgba(45, 161, 43, 0.1);
+}
 
 /* ── Radio Group for Storage Location ── */
 .radio-group {
@@ -1145,6 +1318,7 @@ label {
   gap: 1.25rem;
   margin-top: 5px;
 }
+
 .radio-label {
   display: flex;
   align-items: center;
@@ -1154,6 +1328,7 @@ label {
   color: #1a1a1a;
   cursor: pointer;
 }
+
 .radio-label input[type="radio"] {
   accent-color: #2da12b;
   width: 16px;
@@ -1185,38 +1360,101 @@ label {
   font-weight: 700;
   font-family: inherit;
   z-index: 2000;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
   pointer-events: none;
 }
-.toast.success { background: #2da12b; color: #fff; }
-.toast.info    { background: #3b82f6; color: #fff; }
-.toast.error   { background: #ef4444; color: #fff; }
+
+.toast.success {
+  background: #2da12b;
+  color: #fff;
+}
+
+.toast.info {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.toast.error {
+  background: #ef4444;
+  color: #fff;
+}
 
 /* ── Vue Transition: Modal Fade ── */
-.fade-enter-active { transition: opacity 0.2s ease; }
-.fade-leave-active { transition: opacity 0.15s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 /* ── Vue Transition: Toast Slide Up ── */
-.slide-up-enter-active { transition: opacity 0.25s ease, transform 0.25s ease; }
-.slide-up-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
-.slide-up-enter-from   { opacity: 0; transform: translateX(-50%) translateY(16px); }
-.slide-up-leave-to     { opacity: 0; transform: translateX(-50%) translateY(16px); }
+.slide-up-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.slide-up-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px);
+}
 
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 860px) {
-  .inventory-page { padding: 1rem; gap: 1rem; }
-  .page-header h1 { font-size: 1.2rem; }
-  .cards-row { grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
-  .food-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .inventory-page {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .cards-row {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .food-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 600px) {
-  .cards-row { grid-template-columns: 1fr; }
-  .food-grid { grid-template-columns: 1fr; }
-  .inv-actions { gap: 0.3rem; }
-  .btn-action { padding: 5px 7px; font-size: 0.68rem; }
-  .form-row { grid-template-columns: 1fr; }
+  .cards-row {
+    grid-template-columns: 1fr;
+  }
+
+  .food-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-actions {
+    gap: 0.3rem;
+  }
+
+  .btn-action {
+    padding: 5px 7px;
+    font-size: 0.68rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
