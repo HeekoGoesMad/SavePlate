@@ -107,8 +107,9 @@ function daysUntilExpiry(dateStr) {
 }
 
 // Returns { label, color, bgColor } for the expiry badge
-function getExpiryStatus(dateStr) {
-  const days = daysUntilExpiry(dateStr)
+function getExpiryStatus(item) {
+  if (item.status === 'used') return { label: 'Used', color: '#6b7280', bgColor: '#f3f4f6' }
+  const days = daysUntilExpiry(item.expiryDate)
   if (days < 0)  return { label: 'Expired',            color: '#dc2626', bgColor: '#fef2f2' }
   if (days === 0) return { label: 'Expires Today',      color: '#f59e0b', bgColor: '#fffbeb' }
   if (days <= 3)  return { label: `${days}d left`,      color: '#f59e0b', bgColor: '#fffbeb' }
@@ -170,9 +171,9 @@ function createEmptyItem() {
   return {
     name: '',
     category: '',
-    quantity: '',
+    quantity: 1,
     unit: 'pcs',
-    expiryDate: '',
+    expiryDate: getTodayString(),
     storageLocation: '',
     notes: '',
   }
@@ -273,13 +274,47 @@ function submitEditItem() {
   closeEditModal()
 }
 
+// ── CONFIRM MODAL LOGIC ───────────────────────────────────
+const showConfirmModal = ref(false)
+const confirmData = ref({
+  title: '',
+  message: '',
+  confirmText: '',
+  cancelText: 'Cancel',
+  onConfirm: null,
+  isDanger: false
+})
+
+function openConfirmModal({ title, message, confirmText, cancelText = 'Cancel', onConfirm, isDanger = false }) {
+  confirmData.value = { title, message, confirmText, cancelText, onConfirm, isDanger }
+  showConfirmModal.value = true
+}
+
+function closeConfirmModal() {
+  showConfirmModal.value = false
+  confirmData.value.onConfirm = null
+}
+
+function executeConfirm() {
+  if (confirmData.value.onConfirm) {
+    confirmData.value.onConfirm()
+  }
+  closeConfirmModal()
+}
+
 // ── MARK AS USED ──────────────────────────────────────────
 // (FR-2.3) Updates the item's status to 'used'
 // In a real app: PATCH /api/items/:id/status { status: 'used' }
 function markAsUsed(item) {
-  if (!confirm(`Mark "${item.name}" as fully used? This will update your savings record.`)) return
-  item.status = 'used'
-  showToast(`${item.name} has been marked as used`, 'success')
+  openConfirmModal({
+    title: 'Mark as Used',
+    message: `Mark "${item.name}" as fully used? This will update your savings record.`,
+    confirmText: 'Mark as Used',
+    onConfirm: () => {
+      item.status = 'used'
+      showToast(`Great job! ${item.name} has been marked as used.`, 'success')
+    }
+  })
 }
 
 // ── DELETE ITEM ───────────────────────────────────────────
@@ -287,12 +322,26 @@ function markAsUsed(item) {
 // In a real app: DELETE /api/items/:id
 function deleteItem(item) {
   if (item.status === 'reserved') {
-    alert('This item is reserved for your meal plan. Please remove it from the plan before deleting.')
+    openConfirmModal({
+      title: 'Action Denied',
+      message: 'This item is reserved for your meal plan. Please remove it from the plan before deleting.',
+      confirmText: 'OK',
+      cancelText: '',
+      onConfirm: () => {}
+    })
     return
   }
-  if (!confirm(`Are you sure you want to remove ${item.name} from your inventory? This cannot be undone.`)) return
-  items.value = items.value.filter(i => i.id !== item.id)
-  showToast(`${item.name} has been removed from inventory`, 'success')
+  
+  openConfirmModal({
+    title: 'Delete Item',
+    message: `Are you sure you want to remove ${item.name} from your inventory? This cannot be undone.`,
+    confirmText: 'Delete',
+    isDanger: true,
+    onConfirm: () => {
+      items.value = items.value.filter(i => i.id !== item.id)
+      showToast('Item removed from inventory.', 'success')
+    }
+  })
 }
 
 // ── DONATE MODAL ──────────────────────────────────────────
@@ -442,20 +491,20 @@ function canDonate(item) {
           v-for="item in filteredItems"
           :key="item.id"
           class="food-card"
-          :class="{ urgent: daysUntilExpiry(item.expiryDate) <= 2 }"
-          :style="{ '--card-bg': getExpiryStatus(item.expiryDate).bgColor }"
+          :class="{ urgent: item.status !== 'used' && daysUntilExpiry(item.expiryDate) <= 2 }"
+          :style="{ '--card-bg': getExpiryStatus(item).bgColor }"
         >
           <!-- Card top: icon + expiry badge -->
-          <div class="card-top" :style="{ background: getExpiryStatus(item.expiryDate).bgColor }">
+          <div class="card-top" :style="{ background: getExpiryStatus(item).bgColor }">
             <span class="food-icon">{{ categoryIcon(item.category) }}</span>
             <span
               class="urgency-chip"
               :style="{
-                background: getExpiryStatus(item.expiryDate).color + '18',
-                color: getExpiryStatus(item.expiryDate).color,
-                borderColor: getExpiryStatus(item.expiryDate).color + '40'
+                background: getExpiryStatus(item).color + '18',
+                color: getExpiryStatus(item).color,
+                borderColor: getExpiryStatus(item).color + '40'
               }"
-            >{{ getExpiryStatus(item.expiryDate).label }}</span>
+            >{{ getExpiryStatus(item).label }}</span>
           </div>
 
           <!-- Card body -->
@@ -474,7 +523,8 @@ function canDonate(item) {
               </div>
               <div class="card-meta-row">
                 <span class="meta-icon">📅</span>
-                <span class="meta-text">Expires {{ item.expiryDate }}</span>
+                <span class="meta-text" v-if="item.status === 'used'">Status: Consumed</span>
+                <span class="meta-text" v-else>Expires {{ item.expiryDate }}</span>
               </div>
               <div v-if="item.notes" class="card-meta-row">
                 <span class="meta-icon">📝</span>
@@ -486,18 +536,19 @@ function canDonate(item) {
           <!-- Card footer: action buttons -->
           <div class="card-footer">
             <div class="inv-actions">
-              <button class="btn-action edit" @click="openEditModal(item)" title="Edit">Edit</button>
+              <button v-if="item.status !== 'used'" class="btn-action edit" @click="openEditModal(item)" title="Edit">Edit</button>
               <button
+                v-if="item.status !== 'used'"
                 class="btn-action donate"
                 :class="{ 'btn-disabled': !canDonate(item) }"
                 :disabled="!canDonate(item)"
                 :title="canDonate(item) ? 'Convert to Donation' : 'Can only donate items expiring within 7 days'"
                 @click="canDonate(item) && openDonateModal(item)"
               >Donate</button>
-              <button class="btn-action used" @click="markAsUsed(item)" title="Mark as used">Mark as Used</button>
+              <button v-if="item.status !== 'used'" class="btn-action used" @click="markAsUsed(item)" title="Mark as used">Mark as Used</button>
               <button class="btn-action delete" @click="deleteItem(item)" title="Delete">Delete</button>
             </div>
-            <p v-if="!canDonate(item)" class="donate-hint">
+            <p v-if="item.status !== 'used' && !canDonate(item)" class="donate-hint">
               Donate unlocks when ≤ 7 days to expiry
             </p>
           </div>
@@ -553,7 +604,7 @@ function canDonate(item) {
                   <label for="add-qty">Quantity <span class="required">*</span></label>
                   <input
                     id="add-qty"
-                    v-model="newItem.quantity"
+                    v-model.number="newItem.quantity"
                     type="number"
                     min="1"
                     placeholder="e.g. 200"
@@ -646,7 +697,7 @@ function canDonate(item) {
               <div class="form-row">
                 <div class="form-group">
                   <label for="edit-qty">Quantity <span class="required">*</span></label>
-                  <input id="edit-qty" v-model="editItem.quantity" type="number" min="1" class="form-input" />
+                  <input id="edit-qty" v-model.number="editItem.quantity" type="number" min="1" class="form-input" />
                 </div>
                 <div class="form-group">
                   <label for="edit-unit">Unit</label>
@@ -751,6 +802,34 @@ function canDonate(item) {
       </Transition>
     </Teleport>
 
+
+    <!-- ══════════════════════════════════════════════════
+         MODAL: Confirmation (Generic)
+    ═══════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal">
+          <div class="modal" role="dialog" aria-labelledby="modal-confirm-title">
+            <div class="modal-header">
+              <h3 id="modal-confirm-title">{{ confirmData.title }}</h3>
+              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size: 0.9rem; color: #3a4a3a; line-height: 1.5; margin: 0;">{{ confirmData.message }}</p>
+            </div>
+            <div class="modal-footer">
+              <button v-if="confirmData.cancelText" class="btn-secondary" @click="closeConfirmModal">{{ confirmData.cancelText }}</button>
+              <button
+                :class="confirmData.isDanger ? 'btn-danger' : 'btn-primary'"
+                @click="executeConfirm"
+              >
+                {{ confirmData.confirmText }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
   </AppLayout>
 </template>
@@ -1060,6 +1139,22 @@ function canDonate(item) {
   transition: background 0.2s;
 }
 .btn-donate:hover { background: #25881f; }
+
+.btn-danger {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+.btn-danger:active { transform: scale(0.97); }
 
 /* ── Modal Overlay ── */
 .modal-overlay {
