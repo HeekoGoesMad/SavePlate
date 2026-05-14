@@ -6,17 +6,15 @@ import { useToast } from '@/composables/useToast'
 
 const emit = defineEmits(['navigate'])
 
-const { unreadCount } = useNotifications()
+const { unreadCount, addNotification } = useNotifications()
 const { showToast }   = useToast()
-
-// ── Tab Navigation ──
-const activeTab = ref('browse') // 'browse' | 'inventory'
 
 // ── Filters Section ──
 const searchQuery    = ref('')
 const filterCategory = ref('')   // '' | category label
 const filterExpiry   = ref('')   // '' | '1' | '3' | '7'
 const filterStorage  = ref('')   // '' | 'Fridge' | 'Freezer' | 'Pantry'
+const filterSource   = ref('')   // '' | 'own' | 'donation'  (FR-3.2)
 const sortBy         = ref('expiry')
 
 // ── Categorization List ──
@@ -105,7 +103,7 @@ const allItems = ref([
     status: 'available',
     notes: 'Free-range eggs from local farm.',
   },
-  // Dummy Data Shared Item from Inventory
+  // ── My Inventory Items (merged into unified feed – FR-3.1) ──
   {
     id: 101, name: 'Fresh Milk', qty: '1L',
     storageLocation: 'Refrigerator', storageType: 'Fridge',
@@ -116,36 +114,24 @@ const allItems = ref([
     status: 'available',
     notes: 'Full cream, unopened. Pick up before 8pm.',
   },
-])
-
-// Dummy Data - My Inventory Section
-
-const myInventory = ref([
-  {
-    id: 201, name: 'Fresh Milk', qty: '1L',
-    storageLocation: 'Refrigerator',
-    address: 'My Home',
-    expiry: '2026-04-24', daysLeft: 2,
-    category: 'Dairy', icon: '🥛', bg: '#eff6ff',
-    shared: true, status: 'available',
-    notes: 'Full cream, unopened. Pick up before 8pm.',
-  },
   {
     id: 202, name: 'Sourdough Bread', qty: '1 loaf',
-    storageLocation: 'Counter (room temp)',
-    address: 'My Home',
+    storageLocation: 'Counter (room temp)', storageType: 'Pantry',
+    address: 'My Home – Jl. Anggrek No. 7, Jakarta',
     expiry: '2026-04-25', daysLeft: 3,
     category: 'Bakery', icon: '🍞', bg: '#fffbeb',
-    shared: false, status: 'available',
+    source: 'own', donorName: CURRENT_USER,
+    status: 'available',
     notes: 'Half loaf remaining.',
   },
   {
     id: 203, name: 'Strawberries', qty: '250g',
-    storageLocation: 'Refrigerator',
-    address: 'My Home',
+    storageLocation: 'Refrigerator', storageType: 'Fridge',
+    address: 'My Home – Jl. Anggrek No. 7, Jakarta',
     expiry: '2026-04-26', daysLeft: 4,
     category: 'Other', icon: '🍓', bg: '#f8f8f8',
-    shared: false, status: 'available',
+    source: 'own', donorName: CURRENT_USER,
+    status: 'available',
     notes: 'Fresh from the market.',
   },
 ])
@@ -165,10 +151,13 @@ const filteredItems = computed(() => {
     // Expiry filter
     const matchExpiry = !filterExpiry.value || item.daysLeft <= parseInt(filterExpiry.value)
 
-    // Storage type filter (UC 1.2.1-11)
+    // Storage type filter
     const matchStorage = !filterStorage.value || item.storageType === filterStorage.value
 
-    return matchText && matchCat && matchExpiry && matchStorage
+    // Source filter (FR-3.2)
+    const matchSource = !filterSource.value || item.source === filterSource.value
+
+    return matchText && matchCat && matchExpiry && matchStorage && matchSource
   })
 
   if (sortBy.value === 'expiry') items = [...items].sort((a, b) => a.daysLeft - b.daysLeft)
@@ -177,7 +166,7 @@ const filteredItems = computed(() => {
 })
 
 const hasActiveFilters = computed(() =>
-  filterCategory.value || filterExpiry.value || filterStorage.value || searchQuery.value
+  filterCategory.value || filterExpiry.value || filterStorage.value || filterSource.value || searchQuery.value
 )
 
 function clearFilters() {
@@ -185,6 +174,7 @@ function clearFilters() {
   filterCategory.value = ''
   filterExpiry.value   = ''
   filterStorage.value  = ''
+  filterSource.value   = ''
 }
 
 // ── Helpers ──
@@ -215,7 +205,6 @@ function claimItem(item) {
 
 // ── Item Detail Card
 const detailItem    = ref(null)
-const detailContext = ref('browse') // 'browse' | 'inventory'
 
 // Toast / inline confirmation
 const confirmMsg = ref('')
@@ -226,9 +215,8 @@ function showConfirm(msg) {
   confirmTimer = setTimeout(() => confirmMsg.value = '', 4500)
 }
 
-function openDetail(item, context) {
+function openDetail(item) {
   detailItem.value    = { ...item }
-  detailContext.value = context
   confirmMsg.value    = ''
 }
 function closeDetail() {
@@ -237,8 +225,8 @@ function closeDetail() {
 }
 
 function markAsUsed(item) {
-  const idx = myInventory.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) myInventory.value.splice(idx, 1)
+  const idx = allItems.value.findIndex(i => i.id === item.id)
+  if (idx !== -1) allItems.value.splice(idx, 1)
   showConfirm('✅ Item marked as used and removed from your inventory.')
   closeDetail()
 }
@@ -270,6 +258,11 @@ function submitClaim(item) {
     }
   }
   showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
+
+  // Notify the donor (FR-3.4)
+  if (item.donorName && item.donorName !== CURRENT_USER) {
+    addNotification('donation', `Your item "${item.name}" has been claimed by ${CURRENT_USER}.`, 'browse')
+  }
 }
 
 // Cancel Claim
@@ -290,14 +283,20 @@ function cancelClaim(item) {
   showConfirm('Your claim has been cancelled. The item is now available again.')
 }
 
-// ── Share Toggle (Inventory)
-function toggleShare(item) {
-  item.shared = !item.shared
-  showToast(
-    item.shared ? `"${item.name}" is now shared for claiming` : `"${item.name}" removed from sharing`,
-    item.shared ? 'success' : 'warning',
-    item.shared ? '🤝' : '📦'
-  )
+// ── Convert to Donation (FR-3.3) ──
+function convertToDonation(item) {
+  const idx = allItems.value.findIndex(i => i.id === item.id)
+  if (idx !== -1) {
+    allItems.value[idx] = {
+      ...allItems.value[idx],
+      source: 'donation',
+    }
+  }
+  if (detailItem.value?.id === item.id) {
+    detailItem.value = { ...detailItem.value, source: 'donation' }
+  }
+  showToast(`"${item.name}" is now listed as a donation 🤝`, 'success', '🎁')
+  addNotification('donation', `You converted "${item.name}" into a donation listing.`, 'browse')
 }
 
 </script>
@@ -314,26 +313,7 @@ function toggleShare(item) {
         </div>
       </div>
 
-      <!-- ── Tabs ── -->
-      <div class="tab-bar">
-        <button id="tab-browse" class="tab-btn" :class="{ active: activeTab === 'browse' }" @click="activeTab = 'browse'">
-          🛒 Browse Claimable Items
-          <span v-if="allItems.filter(i => i.status === 'available').length > 0" class="tab-count">
-            {{ allItems.filter(i => i.status === 'available').length }}
-          </span>
-        </button>
-        <button id="tab-inventory" class="tab-btn" :class="{ active: activeTab === 'inventory' }" @click="activeTab = 'inventory'">
-          📦 My Inventory
-          <span class="tab-count tab-count--neutral">{{ myInventory.length }}</span>
-        </button>
-      </div>
-
-      <!-- ══════════════════════════════════════════
-           BROWSE TAB
-      ══════════════════════════════════════════ -->
-      <template v-if="activeTab === 'browse'">
-
-        <!-- ── Filter Panel (UC 1.2.1-11) ── -->
+      <!-- ── Filter Panel (FR-3.2) ── -->
         <div class="filter-panel">
           <div class="filter-title">🔎 Search &amp; Filter</div>
           <div class="filter-row">
@@ -351,6 +331,13 @@ function toggleShare(item) {
               <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">✕</button>
             </div>
 
+            <!-- Source filter (FR-3.2) -->
+            <select id="filter-source" v-model="filterSource" class="form-input filter-select">
+              <option value="">All Sources</option>
+              <option value="own">🏠 My Items</option>
+              <option value="donation">🤝 Community Donations</option>
+            </select>
+
             <!-- Category filter -->
             <select id="filter-category" v-model="filterCategory" class="form-input filter-select">
               <option value="">All Categories</option>
@@ -359,8 +346,7 @@ function toggleShare(item) {
               </option>
             </select>
 
-
-            <!-- Expiry filter (UC 1.2.1-11: Expiring Within N Days) -->
+            <!-- Expiry filter -->
             <select id="filter-expiry" v-model="filterExpiry" class="form-input filter-select">
               <option value="">Any Expiry</option>
               <option value="1">Expiring Within 1 Day</option>
@@ -374,7 +360,7 @@ function toggleShare(item) {
               <option value="name">Sort: Name (A–Z)</option>
             </select>
 
-            <!-- Storage type filter (UC 1.2.1-11) -->
+            <!-- Storage type filter -->
             <select id="filter-storage" v-model="filterStorage" class="form-input filter-select">
               <option value="">Any Storage</option>
               <option value="Fridge">Fridge</option>
@@ -394,17 +380,18 @@ function toggleShare(item) {
           <span class="sort-badge">
             {{ sortBy === 'expiry' ? 'Sorted by Expiry Date' : 'Sorted by Name' }}
             <span v-if="filterExpiry"> · Expiring ≤ {{ filterExpiry }}d</span>
+            <span v-if="filterSource"> · {{ filterSource === 'own' ? 'My Items' : 'Donations' }}</span>
           </span>
           <span class="results-count">{{ filteredItems.length }} item{{ filteredItems.length !== 1 ? 's' : '' }} found</span>
         </div>
 
-        <!-- Empty state (UC 1.2.1-11 message) -->
+        <!-- Empty state -->
         <div v-if="filteredItems.length === 0" class="empty-state">
           <h3>No items found</h3>
           <p>No items match the selected filters. Please adjust your filters.</p>
         </div>
 
-        <!-- Food grid -->
+        <!-- Unified food grid (FR-3.1) -->
         <div v-else class="food-grid">
           <div
             v-for="item in filteredItems"
@@ -412,14 +399,14 @@ function toggleShare(item) {
             class="food-card"
             :class="{ 'is-reserved': item.status === 'reserved', 'is-own': item.source === 'own' }"
             :style="{ '--card-bg': item.bg }"
-            @click="openDetail(item, 'browse')"
+            @click="openDetail(item)"
           >
             <div class="card-top" :style="{ background: item.bg }">
               <span class="food-icon">{{ item.icon }}</span>
               <div class="card-top-badges">
-                <!-- Source badge (UC 1.2.1-11) -->
+                <!-- Source badge -->
                 <span class="source-chip" :class="item.source === 'own' ? 'source-own' : 'source-donation'">
-                  {{ item.source === 'own' ? 'My Listing' : 'Donation' }}
+                  {{ item.source === 'own' ? 'My Item' : 'Donation' }}
                 </span>
                 <span
                   class="urgency-chip"
@@ -443,89 +430,30 @@ function toggleShare(item) {
               </div>
             </div>
 
-            <!-- Status footer -->
+            <!-- Unified card footer (FR-3.3) -->
             <div class="card-footer" @click.stop>
-              <!-- Reserved by current user: show cancel -->
-              <div v-if="item.status === 'reserved' && item.claimedBy === CURRENT_USER" class="reserved-row">
-                <div class="reserved-badge">Reserved by You</div>
-                <button class="cancel-claim-btn" @click="cancelClaim(item)">Cancel</button>
-              </div>
-              <!-- Reserved by someone else -->
-              <div v-else-if="item.status === 'reserved'" class="reserved-badge reserved-badge--other">
-                Reserved
-              </div>
-              <!-- Available & not my own item → show claim button -->
-              <button
-                v-else-if="item.status === 'available' && item.source !== 'own'"
-                class="claim-btn"
-                @click="submitClaim(item)"
-              >Request / Claim Item</button>
-              <!-- My own item -->
-              <div v-else-if="item.source === 'own'" class="own-badge">
-                My Listing
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- ══════════════════════════════════════════
-           INVENTORY TAB
-      ══════════════════════════════════════════ -->
-      <template v-else>
-        <div class="sort-strip">
-          <span class="sort-badge">📦 Your food items</span>
-          <span class="results-count">{{ myInventory.length }} item{{ myInventory.length !== 1 ? 's' : '' }}</span>
-        </div>
-
-        <div v-if="myInventory.length === 0" class="empty-state">
-          <div class="empty-icon">📦</div>
-          <h3>No items yet</h3>
-          <p>Add your first food item to get started.</p>
-        </div>
-
-        <div v-else class="food-grid">
-          <div
-            v-for="item in myInventory"
-            :key="item.id"
-            class="food-card"
-            :style="{ '--card-bg': item.bg }"
-            @click="openDetail(item, 'inventory')"
-          >
-            <div class="card-top" :style="{ background: item.bg }">
-              <span class="food-icon">{{ item.icon }}</span>
-              <span
-                class="urgency-chip"
-                :style="{
-                  background:  urgencyColor(item.daysLeft) + '18',
-                  color:       urgencyColor(item.daysLeft),
-                  borderColor: urgencyColor(item.daysLeft) + '40'
-                }"
-              >{{ urgencyLabel(item.daysLeft) }}</span>
-            </div>
-
-            <div class="card-body">
-              <div class="card-category">{{ item.category }}</div>
-              <h3 class="card-name">{{ item.name }}</h3>
-              <div class="card-meta-list">
-                <div class="card-meta-row"><span class="meta-icon">📦</span><span class="meta-text">{{ item.qty }}</span></div>
-                <div v-if="item.storageLocation" class="card-meta-row">
-                  <span class="meta-icon">🗄️</span><span class="meta-text">{{ item.storageLocation }}</span>
+              <!-- DONATION items -->
+              <template v-if="item.source === 'donation'">
+                <div v-if="item.status === 'reserved' && item.claimedBy === CURRENT_USER" class="reserved-row">
+                  <div class="reserved-badge">Reserved by You</div>
+                  <button class="cancel-claim-btn" @click="cancelClaim(item)">Cancel</button>
                 </div>
-                <div class="card-meta-row"><span class="meta-icon">📅</span><span class="meta-text">{{ item.expiry }}</span></div>
-              </div>
-            </div>
-
-            <div class="card-footer" @click.stop>
-              <div v-if="item.shared" class="shared-badge-row">
-                <div class="shared-badge">Shared</div>
-                <button class="unshare-btn" @click="toggleShare(item)">Unshare</button>
-              </div>
-              <button v-else class="share-btn" @click="toggleShare(item)">Share for Donation</button>
+                <div v-else-if="item.status === 'reserved'" class="reserved-badge reserved-badge--other">
+                  Reserved
+                </div>
+                <button
+                  v-else-if="item.status === 'available'"
+                  class="claim-btn"
+                  @click="submitClaim(item)"
+                >Request / Claim Item</button>
+              </template>
+              <!-- OWN items -->
+              <template v-else-if="item.source === 'own'">
+                <button class="share-btn" @click="convertToDonation(item)">Convert to Donation</button>
+              </template>
             </div>
           </div>
         </div>
-      </template>
 
     </div>
 
@@ -600,18 +528,18 @@ function toggleShare(item) {
                 </div>
               </div>
 
-              <!-- ── Actions (UC 1.2.1-12 contextual) ── -->
+              <!-- ── Contextual Actions (FR-3.3) ── -->
               <div class="detail-actions">
 
-                <!-- BROWSE context: donation item -->
-                <template v-if="detailContext === 'browse'">
+                <!-- DONATION items -->
+                <template v-if="detailItem.source === 'donation'">
                   <button
-                    v-if="detailItem.status === 'available' && detailItem.source !== 'own'"
+                    v-if="detailItem.status === 'available'"
                     class="claim-btn claim-btn--lg"
                     @click="submitClaim(detailItem)"
                   >Request / Claim Item</button>
 
-                  <!-- Reserved by me: cancel (UC 1.2.1-13) -->
+                  <!-- Reserved by me -->
                   <div v-else-if="detailItem.status === 'reserved' && detailItem.claimedBy === CURRENT_USER" class="two-btn-row">
                     <div class="reserved-badge reserved-badge--lg">Reserved by You</div>
                     <button class="cancel-claim-btn cancel-claim-btn--lg" @click="cancelClaim(detailItem)">Cancel Claim</button>
@@ -621,15 +549,10 @@ function toggleShare(item) {
                   <div v-else-if="detailItem.status === 'reserved'" class="reserved-badge reserved-badge--lg">
                     Currently Reserved
                   </div>
-
-                  <!-- My own listing in browse -->
-                  <div v-else-if="detailItem.source === 'own'" class="own-badge own-badge--lg">
-                    This is your listing
-                  </div>
                 </template>
 
-                <!-- INVENTORY context: contextual actions (UC 1.2.1-12) -->
-                <template v-else>
+                <!-- OWN items (FR-3.3: Mark as Used, Add to Meal Plan, Convert to Donation) -->
+                <template v-else-if="detailItem.source === 'own'">
                   <div class="action-group-label">Actions</div>
                   <div class="action-grid">
                     <button class="action-btn action-btn--used" @click="markAsUsed(detailItem)">
@@ -639,6 +562,10 @@ function toggleShare(item) {
                     <button class="action-btn action-btn--meal" @click="addToMealPlan(detailItem)">
                       <span class="action-btn-icon"></span>
                       <span>Add to Meal Plan</span>
+                    </button>
+                    <button class="action-btn action-btn--donate" @click="convertToDonation(detailItem)">
+                      <span class="action-btn-icon"></span>
+                      <span>Convert to Donation</span>
                     </button>
                   </div>
                 </template>

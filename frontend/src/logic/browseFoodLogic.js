@@ -61,6 +61,7 @@ export function computeDaysLeft(expiryDateStr) {
  *   @param {string} filters.filterCategory - exact category label or '' for all
  *   @param {string} filters.filterExpiry   - max daysLeft as string ('1'|'3'|'7') or ''
  *   @param {string} filters.filterStorage  - 'Fridge'|'Freezer'|'Pantry' or ''
+ *   @param {string} filters.filterSource   - 'own'|'donation' or '' for all (FR-3.2)
  *   @param {string} filters.sortBy         - 'expiry' | 'name'
  * @returns {Array} filtered (and sorted) subset of items
  */
@@ -70,6 +71,7 @@ export function filterItems(items, filters = {}) {
     filterCategory = '',
     filterExpiry   = '',
     filterStorage  = '',
+    filterSource   = '',
     sortBy         = 'expiry',
   } = filters
 
@@ -83,8 +85,9 @@ export function filterItems(items, filters = {}) {
     const matchCat     = !filterCategory || item.category === filterCategory
     const matchExpiry  = !filterExpiry   || item.daysLeft <= parseInt(filterExpiry)
     const matchStorage = !filterStorage  || item.storageType === filterStorage
+    const matchSource  = !filterSource   || item.source === filterSource
 
-    return matchText && matchCat && matchExpiry && matchStorage
+    return matchText && matchCat && matchExpiry && matchStorage && matchSource
   })
 
   if (sortBy === 'expiry') result = [...result].sort((a, b) => a.daysLeft - b.daysLeft)
