@@ -8,8 +8,10 @@ import { ref, computed } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast } from '@/composables/useToast'
-
-const emit = defineEmits(['navigate'])
+import { 
+  items, getTodayPlusDays, getTodayString, daysUntilExpiry, getExpiryStatus, 
+  addItem, updateItem, deleteItem as svcDeleteItem, markAsUsed as svcMarkAsUsed, donateItem as svcDonateItem
+} from '@/services/inventoryService'
 
 const { unreadCount } = useNotifications()
 const { showToast } = useToast()
@@ -23,98 +25,6 @@ const STORAGE_LOCATIONS = ['Fridge', 'Freezer', 'Pantry']
 
 // Unit options for quantity
 const UNITS = ['pcs', 'g', 'kg', 'ml', 'L']
-
-// ── MOCK INVENTORY DATA ───────────────────────────────────
-// In a real app, this would come from: GET /api/items
-// Each item follows the FoodItem schema from the Data Dictionary
-const items = ref([
-  {
-    id: 1,
-    name: 'Fresh Milk',
-    category: 'Dairy',
-    quantity: 1,
-    unit: 'L',
-    expiryDate: getTodayPlusDays(1),   // expires tomorrow → URGENT
-    storageLocation: 'Fridge',
-    status: 'available',               // available | used | donated | reserved
-    notes: 'Opened on April 18',
-  },
-  {
-    id: 2,
-    name: 'Spinach',
-    category: 'Vegetables',
-    quantity: 200,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(2),   // expires in 2 days → WARNING
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 3,
-    name: 'Greek Yogurt',
-    category: 'Dairy',
-    quantity: 500,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(4),   // expires in 4 days → SAFE
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 4,
-    name: 'Canned Tuna',
-    category: 'Canned',
-    quantity: 3,
-    unit: 'pcs',
-    expiryDate: getTodayPlusDays(90),  // expires in 90 days → SAFE
-    storageLocation: 'Pantry',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 5,
-    name: 'Frozen Peas',
-    category: 'Frozen',
-    quantity: 400,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(30),  // expires in 30 days → SAFE
-    storageLocation: 'Freezer',
-    status: 'available',
-    notes: '',
-  },
-])
-
-// ── HELPER: Date Utilities ────────────────────────────────
-// Returns a date string "YYYY-MM-DD" n days from today
-function getTodayPlusDays(n) {
-  const d = new Date()
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
-// Returns today as "YYYY-MM-DD" string (used as min for date picker)
-function getTodayString() {
-  return new Date().toISOString().split('T')[0]
-}
-
-// Returns days remaining until expiry (negative = already expired)
-function daysUntilExpiry(dateStr) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const expiry = new Date(dateStr)
-  return Math.round((expiry - today) / (1000 * 60 * 60 * 24))
-}
-
-// Returns { label, color, bgColor } for the expiry badge
-function getExpiryStatus(item) {
-  if (item.status === 'used') return { label: 'Used', color: '#6b7280', bgColor: '#f3f4f6' }
-  const days = daysUntilExpiry(item.expiryDate)
-  if (days < 0) return { label: 'Expired', color: '#dc2626', bgColor: '#fef2f2' }
-  if (days === 0) return { label: 'Expires Today', color: '#f59e0b', bgColor: '#fffbeb' }
-  if (days <= 3) return { label: `${days}d left`, color: '#f59e0b', bgColor: '#fffbeb' }
-  return { label: `${days}d left`, color: '#22c55e', bgColor: '#f0fdf4' }
-}
 
 // ── COMPUTED: Summary Info Boxes (Dashboard‐style cards) ──
 const summaryCards = computed(() => {
@@ -214,9 +124,8 @@ function submitAddItem() {
     return
   }
 
-  // ── Save (mock: push to local array) ──
-  items.value.push({
-    id: Date.now(),                      // temporary ID; real app uses MongoDB _id
+  // ── Save ──
+  addItem({
     name: newItem.value.name.trim(),
     category: newItem.value.category,
     quantity: Number(newItem.value.quantity),
@@ -224,7 +133,6 @@ function submitAddItem() {
     expiryDate: newItem.value.expiryDate,
     storageLocation: newItem.value.storageLocation,
     notes: newItem.value.notes,
-    status: 'available',
   })
 
   showToast('Food item added successfully.', 'success')
@@ -264,11 +172,7 @@ function submitEditItem() {
     return
   }
 
-  // Find the item in the array and replace it with the edited copy
-  const idx = items.value.findIndex(i => i.id === editItem.value.id)
-  if (idx !== -1) {
-    items.value[idx] = { ...editItem.value }
-  }
+  updateItem(editItem.value)
 
   showToast('Food item updated successfully.', 'success')
   closeEditModal()
@@ -311,7 +215,7 @@ function markAsUsed(item) {
     message: `Mark "${item.name}" as fully used? This will update your savings record.`,
     confirmText: 'Mark as Used',
     onConfirm: () => {
-      item.status = 'used'
+      svcMarkAsUsed(item.id)
       showToast(`Great job! ${item.name} has been marked as used.`, 'success')
     }
   })
@@ -338,7 +242,7 @@ function deleteItem(item) {
     confirmText: 'Delete',
     isDanger: true,
     onConfirm: () => {
-      items.value = items.value.filter(i => i.id !== item.id)
+      svcDeleteItem(item.id)
       showToast('Item removed from inventory.', 'success')
     }
   })
@@ -376,7 +280,7 @@ function submitDonate() {
   }
 
   // Update item status to 'donated' (removes it from active inventory view)
-  donateTarget.value.status = 'donated'
+  svcDonateItem(donateTarget.value.id)
   showToast('Your item has been listed for donation. Nearby users will be notified.', 'success')
   closeDonateModal()
 }
@@ -400,8 +304,7 @@ function categoryIcon(category) {
 </script>
 
 <template>
-  <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana"
-    @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
     <div class="inventory-page">
 
       <!-- ══ PAGE HEADER ══════════════════════════════════ -->

@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast }         from '@/composables/useToast'
 
-const emit = defineEmits(['navigate'])
+const router = useRouter()
 
 // ── Shared stores ──
 const { notifications, unreadCount, markRead } = useNotifications()
@@ -64,7 +65,7 @@ function markPopupRead(id) {
     showToast('Notification marked as read', 'notification', '🔔')
   }
 }
-function openNotifPage() { showPopup.value = false; emit('navigate', 'notifications') }
+function openNotifPage() { showPopup.value = false; router.push({ name: 'notifications' }) }
 
 function handleClickOutside(e) {
   if (showPopup.value &&
@@ -77,7 +78,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 </script>
 
 <template>
-  <AppLayout current-page="dashboard" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
     <div class="dashboard">
 
       <!-- ── Header ── -->
@@ -144,7 +145,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
         <div class="panel">
           <div class="panel-head">
             <h2>⏰ Expiring Soon</h2>
-            <button class="link-btn" @click="emit('navigate', 'inventory')">View all →</button>
+            <button class="link-btn" @click="router.push({ name: 'inventory' })">View all →</button>
           </div>
           <div class="expiry-list">
             <div v-for="item in expiringItems" :key="item.name" class="expiry-row">
@@ -157,8 +158,8 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
               >{{ urgencyLabel[item.urgency] }}</span>
             </div>
             <div class="action-strip">
-              <button class="strip-btn green" @click="emit('navigate', 'meal-planner')">📅 Plan items</button>
-              <button class="strip-btn amber" @click="emit('navigate', 'inventory')">📦 Inventory</button>
+              <button class="strip-btn green" @click="router.push({ name: 'meal-planner' })">📅 Plan items</button>
+              <button class="strip-btn amber" @click="router.push({ name: 'inventory' })">📦 Inventory</button>
             </div>
           </div>
         </div>
@@ -167,7 +168,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
         <div class="panel">
           <div class="panel-head"><h2>⚡ Quick Actions</h2></div>
           <div class="quick-actions">
-            <button class="qa-card" @click="emit('navigate', 'meal-planner')">
+            <button class="qa-card" @click="router.push({ name: 'meal-planner' })">
               <div class="qa-icon" style="background:#eff6ff">📅</div>
               <div class="qa-label"><span>Meal</span><strong>Planner</strong></div>
             </button>
@@ -175,11 +176,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
               <div class="qa-icon" style="background:#fef2f2">🔔</div>
               <div class="qa-label"><span>Alerts</span><strong>Centre</strong></div>
             </button>
-            <button class="qa-card" @click="emit('navigate', 'inventory')">
+            <button class="qa-card" @click="router.push({ name: 'inventory' })">
               <div class="qa-icon" style="background:#f0faf0">📦</div>
               <div class="qa-label"><span>Food</span><strong>Inventory</strong></div>
             </button>
-            <button class="qa-card" @click="emit('navigate', 'browse')">
+            <button class="qa-card" @click="router.push({ name: 'browse' })">
               <div class="qa-icon" style="background:#fdf4ff">🔍</div>
               <div class="qa-label"><span>Browse</span><strong>Donations</strong></div>
             </button>

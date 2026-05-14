@@ -16,6 +16,8 @@ import {
   addToMealPlan,
   submitClaim,
   cancelClaim,
+  convertToDonation,
+  cancelDonation,
 } from '../logic/browseFoodLogic.js'
 
 // ─── Shared test data ────────────────────────────────────────────────────────
@@ -26,27 +28,32 @@ function makeDummyItems() {
       id: 1, name: 'Homemade Banana Bread', category: 'Bakery',
       source: 'donation', storageType: 'Pantry', daysLeft: 4,
       address: 'Jl. Sudirman No. 12, Jakarta', status: 'available',
+      donorName: 'Budi Santoso',
     },
     {
       id: 2, name: 'Fresh Spinach Bunch', category: 'Vegetables',
       source: 'donation', storageType: 'Fridge', daysLeft: 2,
       address: 'Jl. Kebon Jeruk No. 5, Jakarta', status: 'available',
+      donorName: 'Siti Rahma',
     },
     {
       id: 3, name: 'Greek Yogurt', category: 'Dairy',
       source: 'donation', storageType: 'Fridge', daysLeft: 3,
       address: 'Jl. Melawai Raya No. 8, Jakarta',
       status: 'reserved', claimedBy: 'Adrienne Kayana',
+      donorName: 'Rina Hartati',
     },
     {
       id: 4, name: 'Cooked White Rice', category: 'Other',
       source: 'donation', storageType: 'Pantry', daysLeft: 1,
       address: 'Jl. Cempaka Putih No. 3, Jakarta', status: 'available',
+      donorName: 'Ahmad Fauzi',
     },
     {
       id: 101, name: 'Fresh Milk', category: 'Dairy',
       source: 'own', storageType: 'Fridge', daysLeft: 2,
       address: 'My Home – Jl. Anggrek No. 7, Jakarta', status: 'available',
+      donorName: 'Adrienne Kayana',
     },
   ]
 }
@@ -236,6 +243,77 @@ describe('UC 1.2.1-13 – Claim & Cancel Donation Item', () => {
     // item 2 should remain untouched
     expect(items.find(i => i.id === 2).status).toBe('available')
     expect(items.find(i => i.id === 2).claimedBy).toBeUndefined()
+  })
+
+  it('T3-07 [-] submitClaim returns false when donor tries to claim own item', () => {
+    // Item 101 has donorName === CURRENT_USER
+    const ownItem = items.find(i => i.id === 101)
+    // Convert to donation first so source === 'donation'
+    convertToDonation(items, ownItem)
+    const result = submitClaim(items, ownItem, CURRENT_USER)
+    expect(result).toBe(false)
+  })
+
+  it('T3-08 [-] submitClaim does not change status when donor tries to self-claim', () => {
+    const ownItem = items.find(i => i.id === 101)
+    convertToDonation(items, ownItem)
+    submitClaim(items, ownItem, CURRENT_USER)
+    expect(items.find(i => i.id === 101).status).toBe('available')
+  })
+
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FR-3.3  Convert to Donation / Cancel Donation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('FR-3.3 – Convert to Donation & Cancel Donation', () => {
+
+  let items
+
+  beforeEach(() => {
+    items = makeDummyItems()
+  })
+
+  // ── Positive Scenarios ───────────────────────────────────────────────────
+
+  it('T4-01 [+] convertToDonation changes item source from "own" to "donation"', () => {
+    const ownItem = items.find(i => i.id === 101)
+    convertToDonation(items, ownItem)
+    expect(items.find(i => i.id === 101).source).toBe('donation')
+  })
+
+  it('T4-02 [+] convertToDonation sets convertedFromOwn to true', () => {
+    const ownItem = items.find(i => i.id === 101)
+    convertToDonation(items, ownItem)
+    expect(items.find(i => i.id === 101).convertedFromOwn).toBe(true)
+  })
+
+  it('T4-03 [+] cancelDonation returns item source to "own" when available', () => {
+    const ownItem = items.find(i => i.id === 101)
+    convertToDonation(items, ownItem)
+    const result = cancelDonation(items, ownItem)
+    expect(result).toBe(true)
+    expect(items.find(i => i.id === 101).source).toBe('own')
+    expect(items.find(i => i.id === 101).convertedFromOwn).toBeUndefined()
+  })
+
+  // ── Negative Scenarios ───────────────────────────────────────────────────
+
+  it('T4-04 [-] cancelDonation fails if item is already claimed (reserved)', () => {
+    const ownItem = items.find(i => i.id === 101)
+    convertToDonation(items, ownItem)
+    // Simulate another user claiming it
+    items.find(i => i.id === 101).status = 'reserved'
+    items.find(i => i.id === 101).claimedBy = 'Another User'
+    const result = cancelDonation(items, ownItem)
+    expect(result).toBe(false)
+    expect(items.find(i => i.id === 101).source).toBe('donation')
+  })
+
+  it('T4-05 [-] cancelDonation returns false for a non-existent item', () => {
+    const result = cancelDonation(items, { id: 9999 })
+    expect(result).toBe(false)
   })
 
 })

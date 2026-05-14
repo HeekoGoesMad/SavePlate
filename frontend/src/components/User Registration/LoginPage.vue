@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { authService } from '@/services/authService'
 
-const emit = defineEmits(['go-register', 'login-success'])
+const router = useRouter()
 
 const email       = ref('')
 const password    = ref('')
@@ -29,8 +31,8 @@ const handleLogin = async () => {
   isLoading.value = true
   await new Promise((r) => setTimeout(r, 1500))
   isLoading.value = false
-  // TODO: POST /api/auth/login — emitting success for prototype demo
-  emit('login-success')
+  authService.login()
+  router.push({ name: 'dashboard' })
 }
 </script>
 
@@ -130,7 +132,7 @@ const handleLogin = async () => {
 
         <div class="divider"><span>OR</span></div>
 
-        <button type="button" id="btn-signup" class="btn-secondary" @click="emit('go-register')">
+        <button type="button" id="btn-signup" class="btn-secondary" @click="router.push({ name: 'register' })">
           Don't have an account? <strong>Sign up</strong>
         </button>
 
