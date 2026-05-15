@@ -44,12 +44,27 @@ function toggle2FA() {
   )
 }
 
-// ── Visibility Settings ──
+// ── Visibility Settings ── (FR-1.4)
+const donationVisibility = ref('public')  // 'public' | 'community' | 'private'
+const showFullName = ref(true)
+const showLocation = ref(true)
+
 const visibilityOptions = ref([
   { id: 'public-profile',   label: 'Public Profile',           desc: 'Let others find your profile',               enabled: true  },
-  { id: 'show-donations',   label: 'Show Donation History',    desc: 'Display your past donations publicly',        enabled: false },
   { id: 'show-activity',    label: 'Show Recent Activity',     desc: "Share what you've been saving lately",        enabled: true  },
 ])
+
+const donationVisibilityOptions = [
+  { value: 'public',    label: 'Public',          desc: 'Anyone can see your donation listings' },
+  { value: 'community', label: 'Community Only',  desc: 'Only registered SavePlate users can see your listings' },
+  { value: 'private',   label: 'Private',         desc: 'Only you can see your donation listings' },
+]
+
+function setDonationVisibility(val) {
+  donationVisibility.value = val
+  // FR-1.5: auto-applied to all existing and future listings
+  showToast(`Donation listings set to ${donationVisibilityOptions.find(o => o.value === val)?.label}`, 'success', '🔒')
+}
 
 function toggleVisibility(opt) {
   opt.enabled = !opt.enabled
@@ -182,28 +197,104 @@ function doLogout()      { emit('navigate', 'logout') }
         <div class="card-header no-action">
           <div class="card-title-row">
             <span class="card-icon-wrap" style="--ic-bg:#ede9fe;--ic-color:#7c3aed;">👁️</span>
-            <h2>Visibility Settings</h2>
+            <h2>Privacy &amp; Visibility</h2>
           </div>
         </div>
 
-        <div class="toggle-list">
-          <div v-for="(opt, i) in visibilityOptions" :key="opt.id">
-            <div class="info-divider" v-if="i > 0"></div>
+        <!-- Donation Listing Visibility (FR-1.4) -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-title">Donation Listing Visibility</span>
+            <span class="privacy-section-desc">Choose who can see your donation listings. Changes apply automatically to all your current and future listings.</span>
+          </div>
+          <div class="visibility-options">
+            <button
+              v-for="opt in donationVisibilityOptions"
+              :key="opt.value"
+              :id="`visibility-${opt.value}`"
+              class="visibility-option"
+              :class="{ selected: donationVisibility === opt.value }"
+              @click="setDonationVisibility(opt.value)"
+              :aria-pressed="donationVisibility === opt.value"
+            >
+              <span class="vis-icon">
+                <span v-if="opt.value === 'public'">🌐</span>
+                <span v-else-if="opt.value === 'community'">👥</span>
+                <span v-else>🔒</span>
+              </span>
+              <span class="vis-details">
+                <strong>{{ opt.label }}</strong>
+                <span>{{ opt.desc }}</span>
+              </span>
+              <span class="vis-check" v-if="donationVisibility === opt.value">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="info-divider" style="margin: 1rem 0"></div>
+
+        <!-- Profile Visibility Toggles -->
+        <div class="privacy-section">
+          <div class="privacy-section-header">
+            <span class="privacy-section-title">Profile Visibility</span>
+            <span class="privacy-section-desc">Control what information is shown on your public profile.</span>
+          </div>
+          <div class="toggle-list">
+            <!-- Show Full Name toggle -->
             <div class="toggle-item">
               <div class="toggle-info">
-                <span class="toggle-label">{{ opt.label }}</span>
-                <span class="toggle-desc">{{ opt.desc }}</span>
+                <span class="toggle-label">Show Full Name</span>
+                <span class="toggle-desc">Display your full name on donation listings and profile</span>
               </div>
               <button
+                id="toggle-show-full-name"
                 class="toggle-switch"
-                :class="{ on: opt.enabled }"
-                @click="toggleVisibility(opt)"
-                :aria-checked="opt.enabled"
+                :class="{ on: showFullName }"
+                @click="showFullName = !showFullName; showToast(`Full name ${showFullName ? 'shown' : 'hidden'} on profile`, showFullName ? 'info' : 'warning', '👤')"
+                :aria-checked="showFullName"
                 role="switch"
-                :aria-label="`Toggle ${opt.label}`"
+                aria-label="Toggle full name visibility"
               >
                 <span class="toggle-thumb"></span>
               </button>
+            </div>
+            <div class="info-divider"></div>
+            <!-- Show Location toggle -->
+            <div class="toggle-item">
+              <div class="toggle-info">
+                <span class="toggle-label">Show Location</span>
+                <span class="toggle-desc">Display your general location on donation listings</span>
+              </div>
+              <button
+                id="toggle-show-location"
+                class="toggle-switch"
+                :class="{ on: showLocation }"
+                @click="showLocation = !showLocation; showToast(`Location ${showLocation ? 'shown' : 'hidden'} on listings`, showLocation ? 'info' : 'warning', '📍')"
+                :aria-checked="showLocation"
+                role="switch"
+                aria-label="Toggle location visibility"
+              >
+                <span class="toggle-thumb"></span>
+              </button>
+            </div>
+            <div v-for="(opt, i) in visibilityOptions" :key="opt.id">
+              <div class="info-divider"></div>
+              <div class="toggle-item">
+                <div class="toggle-info">
+                  <span class="toggle-label">{{ opt.label }}</span>
+                  <span class="toggle-desc">{{ opt.desc }}</span>
+                </div>
+                <button
+                  class="toggle-switch"
+                  :class="{ on: opt.enabled }"
+                  @click="toggleVisibility(opt)"
+                  :aria-checked="opt.enabled"
+                  role="switch"
+                  :aria-label="`Toggle ${opt.label}`"
+                >
+                  <span class="toggle-thumb"></span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -612,6 +703,95 @@ function doLogout()      { emit('navigate', 'logout') }
   .settings-page { padding: 1rem; gap: 1rem; }
   .page-header h1 { font-size: 1.25rem; }
   .settings-card { padding: 1.1rem 1.15rem; }
+}
+
+/* ── Privacy section ── */
+.privacy-section { display: flex; flex-direction: column; gap: 0.75rem; }
+.privacy-section + .privacy-section { margin-top: 0; }
+
+.privacy-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 0.5rem;
+}
+.privacy-section-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+.privacy-section-desc {
+  font-size: 0.76rem;
+  color: #9aaa9a;
+  line-height: 1.45;
+}
+
+/* ── Visibility option buttons (radio-style) ── */
+.visibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.visibility-option {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 12px 14px;
+  border: 1.5px solid #e8ede8;
+  border-radius: 12px;
+  background: #fafbfa;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+
+.visibility-option:hover {
+  border-color: #b6deb6;
+  background: #f4fbf4;
+}
+
+.visibility-option.selected {
+  border-color: #2da12b;
+  background: #f0faf0;
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.08);
+}
+
+.vis-icon {
+  font-size: 1.25rem;
+  min-width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.vis-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.vis-details strong {
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.vis-details span {
+  font-size: 0.75rem;
+  color: #9aaa9a;
+  line-height: 1.35;
+}
+
+.vis-check {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #2da12b;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
 }
 </style>
 

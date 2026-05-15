@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 
-const emit = defineEmits(['go-login', 'register-success'])
+const emit = defineEmits(['go-login', 'register-pending', 'register-success'])
 
 const fullName       = ref('')
 const email          = ref('')
@@ -80,8 +80,8 @@ const handleRegister = async () => {
   isLoading.value = true
   await new Promise((r) => setTimeout(r, 1800))
   isLoading.value = false
-  // TODO: POST /api/auth/register — emitting success for prototype demo
-  emit('register-success')
+  // TODO: POST /api/auth/register — transition to OTP step (FR-1.2)
+  emit('register-pending', email.value.trim())
 }
 </script>
 
@@ -120,16 +120,6 @@ const handleRegister = async () => {
           </li>
         </ul>
 
-        <div class="stats">
-          <div class="stat">
-            <strong>12,480+</strong>
-            <span>Meals Saved</span>
-          </div>
-          <div class="stat">
-            <strong>3.2 tons</strong>
-            <span>CO₂ Reduced</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -397,32 +387,6 @@ const handleRegister = async () => {
 .steps-list li span {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.7);
-}
-
-/* Stats */
-.stats {
-  display: flex;
-  gap: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat strong {
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
-.stat span {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 /* ── Right panel ── */

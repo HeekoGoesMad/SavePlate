@@ -51,16 +51,7 @@ const handleLogin = async () => {
           <li>📊 View your savings analytics</li>
         </ul>
 
-        <div class="stats">
-          <div class="stat">
-            <strong>12,480+</strong>
-            <span>Meals Saved</span>
-          </div>
-          <div class="stat">
-            <strong>3.2 tons</strong>
-            <span>CO₂ Reduced</span>
-          </div>
-        </div>
+
       </div>
     </div>
 
@@ -240,30 +231,6 @@ const handleLogin = async () => {
   gap: 0.75rem;
 }
 
-.stats {
-  display: flex;
-  gap: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stat strong {
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
-.stat span {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
 /* ── Right panel ── */
 .panel-right {
