@@ -1,11 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
-const props = defineProps({
-  email: { type: String, default: '' },
-})
+const router = useRouter()
+const route = useRoute()
 
-const emit = defineEmits(['verify-success', 'go-login'])
+const email = computed(() => route.query.email || '')
 
 // ── OTP state ────────────────────────────────────────────────
 const otp        = ref(['', '', '', '', '', ''])
@@ -98,7 +98,7 @@ const handleVerify = async () => {
 
   successMsg.value = 'Email verified! Activating your account…'
   await new Promise(r => setTimeout(r, 1200))
-  emit('verify-success')
+  router.push({ name: 'login' })
 }
 
 async function handleResend() {
@@ -233,7 +233,7 @@ async function handleResend() {
 
         <div class="divider"><span>OR</span></div>
 
-        <button type="button" id="btn-back-to-login" class="btn-secondary" @click="emit('go-login')">
+        <button type="button" id="btn-back-to-login" class="btn-secondary" @click="router.push({ name: 'login' })">
           ← Back to Login
         </button>
 

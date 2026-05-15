@@ -3,6 +3,7 @@ import { authService } from '@/services/authService'
 
 import LoginPage    from '@/components/User Registration/LoginPage.vue'
 import RegisterPage from '@/components/User Registration/RegisterPage.vue'
+import AuthPage     from '@/components/User Registration/AuthPage.vue'
 import Dashboard    from '@/components/Menu/Dashboard.vue'
 import Inventory    from '@/components/Menu/Inventory.vue'
 import Notification from '@/components/Menu/Notification.vue'
@@ -14,6 +15,7 @@ import Settings     from '@/components/Menu/Settings.vue'
 const routes = [
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/register', name: 'register', component: RegisterPage },
+  { path: '/verify', name: 'verify', component: AuthPage },
   { path: '/', name: 'dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/inventory', name: 'inventory', component: Inventory, meta: { requiresAuth: true } },
   { path: '/notifications', name: 'notifications', component: Notification, meta: { requiresAuth: true } },

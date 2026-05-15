@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-const emit = defineEmits(['go-login', 'register-pending', 'register-success'])
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const fullName       = ref('')
 const email          = ref('')
@@ -80,7 +82,7 @@ const handleRegister = async () => {
   await new Promise((r) => setTimeout(r, 1800))
   isLoading.value = false
   // TODO: POST /api/auth/register — transition to OTP step (FR-1.2)
-  emit('register-pending', email.value.trim())
+  router.push({ name: 'verify', query: { email: email.value.trim() } })
 }
 </script>
 
