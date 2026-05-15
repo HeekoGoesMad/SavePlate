@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref } from 'vue'
 import LoginPage     from '@/components/User Registration/LoginPage.vue'
 import RegisterPage  from '@/components/User Registration/RegisterPage.vue'
@@ -47,10 +48,12 @@ function onNavigate(page) {
     currentPage.value = page
   }
 }
+
 </script>
 
 <template>
   <div id="app-root">
+
     <!-- ── Authenticated app ── -->
     <template v-if="isLoggedIn">
       <Dashboard    v-if="currentPage === 'dashboard'"          @navigate="onNavigate" />
@@ -91,48 +94,9 @@ function onNavigate(page) {
         @go-login="authView = 'login'"
       />
     </template>
+
   </div>
 </template>
 
 <style scoped>
-.placeholder-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: #f0f4f0;
-  font-family: 'Inter', sans-serif;
-}
-.placeholder-card {
-  background: #fff;
-  border: 1px solid #e8ede8;
-  border-radius: 20px;
-  padding: 3rem 2.5rem;
-  text-align: center;
-  max-width: 380px;
-  width: 90%;
-}
-.ph-icon { font-size: 3rem; margin-bottom: 1rem; }
-.placeholder-card h2 {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #1a1a1a;
-  text-transform: capitalize;
-  background: none;
-  -webkit-text-fill-color: unset;
-  margin-bottom: 0.5rem;
-}
-.placeholder-card p { font-size: 0.88rem; color: #7a8a7a; margin-bottom: 1.5rem; }
-.placeholder-card button {
-  padding: 11px 22px;
-  background: linear-gradient(135deg, #2da12b, #3dc43b);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  box-shadow: 0 4px 14px rgba(45,161,43,0.25);
-}
 </style>

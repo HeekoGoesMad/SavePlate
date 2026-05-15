@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed } from 'vue'
-
 const emit = defineEmits(['go-login', 'register-pending', 'register-success'])
 
 const fullName       = ref('')
@@ -249,7 +248,7 @@ const handleRegister = async () => {
 
         <div class="divider"><span>OR</span></div>
 
-        <button type="button" id="btn-go-login" class="btn-secondary" @click="emit('go-login')">
+        <button type="button" id="btn-go-login" class="btn-secondary" @click="router.push({ name: 'login' })">
           Already have an account? <strong>Log in</strong>
         </button>
 

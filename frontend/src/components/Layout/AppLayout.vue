@@ -1,14 +1,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast }         from '@/composables/useToast'
 
 const props = defineProps({
-  currentPage: { type: String, default: 'dashboard' },
   unreadCount: { type: Number, default: 0 },   // kept for API compat; badge uses composable
   userName:    { type: String, default: 'Adrienne' },
 })
-const emit = defineEmits(['navigate'])
+
+const router = useRouter()
+const route = useRoute()
 
 // ── Shared notification store ──
 const { notifications, unreadCount: sharedUnread, markRead } = useNotifications()
@@ -40,7 +42,7 @@ const userInitials = computed(() =>
 )
 
 function navigate(page) {
-  emit('navigate', page)
+  router.push({ name: page })
   closeMobilePopup()
 }
 
@@ -68,7 +70,7 @@ function markMobileRead(id) {
 
 function viewAllNotifs() {
   closeMobilePopup()
-  emit('navigate', 'notifications')
+  router.push({ name: 'notifications' })
 }
 
 function handleClickOutside(e) {
@@ -96,7 +98,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
           v-for="item in navItems"
           :key="item.id"
           class="nav-item"
-          :class="{ active: currentPage === item.id }"
+          :class="{ active: route.name === item.id }"
           @click="navigate(item.id)"
         >
           <span class="nav-icon">{{ item.icon }}</span>
@@ -206,7 +208,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
         v-for="item in bottomNavItems"
         :key="item.id"
         class="tab-item"
-        :class="{ active: currentPage === item.id }"
+        :class="{ active: route.name === item.id }"
         @click="navigate(item.id)"
       >
         <span class="tab-icon">{{ item.icon }}</span>

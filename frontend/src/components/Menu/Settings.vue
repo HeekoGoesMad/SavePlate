@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useToast } from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
+import { authService } from '@/services/authService'
 
-const emit = defineEmits(['navigate'])
+const router = useRouter()
 
 const { showToast } = useToast()
 const { unreadCount } = useNotifications()
@@ -88,15 +90,16 @@ function toggleNotif(opt) {
 const showLogoutConfirm = ref(false)
 function confirmLogout() { showLogoutConfirm.value = true }
 function cancelLogout()  { showLogoutConfirm.value = false }
-function doLogout()      { emit('navigate', 'logout') }
+function doLogout() {
+  authService.logout()
+  router.push({ name: 'login' })
+}
 </script>
 
 <template>
   <AppLayout
-    current-page="settings"
     :unread-count="unreadCount"
     :user-name="userName"
-    @navigate="emit('navigate', $event)"
   >
     <div class="settings-page">
 

@@ -3,31 +3,30 @@ import { ref, computed } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast } from '@/composables/useToast'
+import {
+  allItems, claimItemById, cancelClaimById, confirmHandoverById,
+  convertToDonationById, cancelDonationById, markAsUsedById
+} from '@/services/donationService'
 
-const emit = defineEmits(['navigate'])
-
-const { unreadCount } = useNotifications()
-const { showToast }   = useToast()
-
-// ── Tab Navigation ──
-const activeTab = ref('browse') // 'browse' | 'inventory'
+const { unreadCount, addNotification } = useNotifications()
+const { showToast } = useToast()
 
 // ── Filters Section ──
-const searchQuery    = ref('')
+const searchQuery = ref('')
 const filterCategory = ref('')   // '' | category label
-const filterSource   = ref('')   // '' | 'donation' | 'own'
-const filterExpiry   = ref('')   // '' | '1' | '3' | '7'
-const filterStorage  = ref('')   // '' | 'Fridge' | 'Freezer' | 'Pantry'
-const sortBy         = ref('expiry')
+const filterExpiry = ref('')   // '' | '1' | '3' | '7'
+const filterStorage = ref('')   // '' | 'Fridge' | 'Freezer' | 'Pantry'
+const filterSource = ref('')   // '' | 'own' | 'donation'  (FR-3.2)
+const sortBy = ref('expiry')
 
 // ── Categorization List ──
 const CATEGORIES = [
   { label: 'Vegetables', icon: '🥬', bg: '#f0faf0' },
-  { label: 'Dairy',      icon: '🥛', bg: '#eff6ff' },
-  { label: 'Canned',     icon: '🥫', bg: '#fef9f0' },
-  { label: 'Frozen',     icon: '🧊', bg: '#f0f9ff' },
-  { label: 'Bakery',     icon: '🍞', bg: '#fffbeb' },
-  { label: 'Other',      icon: '🍱', bg: '#f8f8f8' },
+  { label: 'Dairy', icon: '🥛', bg: '#eff6ff' },
+  { label: 'Canned', icon: '🥫', bg: '#fef9f0' },
+  { label: 'Frozen', icon: '🧊', bg: '#f0f9ff' },
+  { label: 'Bakery', icon: '🍞', bg: '#fffbeb' },
+  { label: 'Other', icon: '🍱', bg: '#f8f8f8' },
 ]
 
 // ── Demo User ──
@@ -35,127 +34,21 @@ const CURRENT_USER = 'Adrienne Kayana'
 
 function computeDaysLeft(expiryDateStr) {
   if (!expiryDateStr) return 0
-  const today  = new Date()
+  const today = new Date()
   today.setHours(0, 0, 0, 0)
   const expiry = new Date(expiryDateStr)
   expiry.setHours(0, 0, 0, 0)
   return Math.round((expiry - today) / (1000 * 60 * 60 * 24))
 }
 
-let nextId = 200
-
-// ── Dummy Data Donated & Claimable Food 
-const allItems = ref([
-  {
-    id: 1, name: 'Homemade Banana Bread', qty: '1 loaf',
-    storageLocation: 'Counter (room temp)', storageType: 'Pantry',
-    address: 'Jl. Sudirman No. 12, Jakarta',
-    expiry: '2026-04-28', daysLeft: 6,
-    category: 'Bakery', icon: '🍞', bg: '#fffbeb',
-    source: 'donation', donorName: 'Budi Santoso',
-    status: 'available',
-    notes: 'Freshly baked this morning. No nuts, no preservatives.',
-  },
-  {
-    id: 2, name: 'Fresh Spinach Bunch', qty: '300g',
-    storageLocation: 'Refrigerator', storageType: 'Fridge',
-    address: 'Jl. Kebon Jeruk No. 5, Jakarta',
-    expiry: '2026-04-24', daysLeft: 2,
-    category: 'Vegetables', icon: '🥬', bg: '#f0faf0',
-    source: 'donation', donorName: 'Siti Rahma',
-    status: 'available',
-    notes: 'Organic, washed and ready to cook.',
-  },
-  {
-    id: 3, name: 'Greek Yogurt', qty: '2 cups (500g)',
-    storageLocation: 'Refrigerator', storageType: 'Fridge',
-    address: 'Jl. Melawai Raya No. 8, Jakarta',
-    expiry: '2026-04-25', daysLeft: 3,
-    category: 'Dairy',      icon: '🥛', bg: '#eff6ff',
-    source: 'donation', donorName: 'Rina Hartati',
-    status: 'reserved', claimedBy: CURRENT_USER,
-    preferredPickup: 'Tomorrow, 10am – 12pm',
-    claimNote: 'I will pick up in the morning.',
-    notes: 'Plain, full-fat. Unopened.',
-  },
-  {
-    id: 4, name: 'Cooked White Rice', qty: '4 portions',
-    storageLocation: 'Counter (room temp)', storageType: 'Pantry',
-    address: 'Jl. Cempaka Putih No. 3, Jakarta',
-    expiry: '2026-04-23', daysLeft: 1,
-    category: 'Other',     icon: '🍚', bg: '#f8f8f8',
-    source: 'donation', donorName: 'Ahmad Fauzi',
-    status: 'available',
-    notes: 'Cooked this afternoon. Still warm.',
-  },
-  {
-    id: 5, name: 'Ripe Mangoes', qty: '6 pieces',
-    storageLocation: 'Counter (room temp)', storageType: 'Pantry',
-    address: 'Jl. Tebet Barat No. 20, Jakarta',
-    expiry: '2026-04-25', daysLeft: 3,
-    category: 'Other',     icon: '🥭', bg: '#f8f8f8',
-    source: 'donation', donorName: 'Dewi Lestari',
-    status: 'available',
-    notes: 'Very sweet Harum Manis variety.',
-  },
-  {
-    id: 6, name: 'Chicken Egg (Free Range)', qty: '12 eggs',
-    storageLocation: 'Refrigerator', storageType: 'Fridge',
-    address: 'Jl. Fatmawati No. 15, Jakarta',
-    expiry: '2026-04-29', daysLeft: 7,
-    category: 'Other', icon: '🥚', bg: '#f8f8f8',
-    source: 'donation', donorName: 'Hendra Wijaya',
-    status: 'available',
-    notes: 'Free-range eggs from local farm.',
-  },
-  // Dummy Data Shared Item from Inventory
-  {
-    id: 101, name: 'Fresh Milk', qty: '1L',
-    storageLocation: 'Refrigerator', storageType: 'Fridge',
-    address: 'My Home – Jl. Anggrek No. 7, Jakarta',
-    expiry: '2026-04-24', daysLeft: 2,
-    category: 'Dairy', icon: '🥛', bg: '#eff6ff',
-    source: 'own', donorName: CURRENT_USER,
-    status: 'available',
-    notes: 'Full cream, unopened. Pick up before 8pm.',
-  },
-])
-
-// Dummy Data - My Inventory Section
-
-const myInventory = ref([
-  {
-    id: 201, name: 'Fresh Milk', qty: '1L',
-    storageLocation: 'Refrigerator',
-    address: 'My Home',
-    expiry: '2026-04-24', daysLeft: 2,
-    category: 'Dairy', icon: '🥛', bg: '#eff6ff',
-    shared: true, status: 'available',
-    notes: 'Full cream, unopened. Pick up before 8pm.',
-  },
-  {
-    id: 202, name: 'Sourdough Bread', qty: '1 loaf',
-    storageLocation: 'Counter (room temp)',
-    address: 'My Home',
-    expiry: '2026-04-25', daysLeft: 3,
-    category: 'Bakery', icon: '🍞', bg: '#fffbeb',
-    shared: false, status: 'available',
-    notes: 'Half loaf remaining.',
-  },
-  {
-    id: 203, name: 'Strawberries', qty: '250g',
-    storageLocation: 'Refrigerator',
-    address: 'My Home',
-    expiry: '2026-04-26', daysLeft: 4,
-    category: 'Other', icon: '🍓', bg: '#f8f8f8',
-    shared: false, status: 'available',
-    notes: 'Fresh from the market.',
-  },
-])
+// dummy data moved to services/donationService.js
 
 // ── Filtering Items
 const filteredItems = computed(() => {
   let items = allItems.value.filter(item => {
+    // Hide completed items
+    if (item.status === 'completed') return false
+
     // Text search
     const q = searchQuery.value.toLowerCase()
     const matchText = !q || item.name.toLowerCase().includes(q) ||
@@ -165,33 +58,33 @@ const filteredItems = computed(() => {
     // Category filter
     const matchCat = !filterCategory.value || item.category === filterCategory.value
 
-    // Source filter
-    const matchSource = !filterSource.value || item.source === filterSource.value
-
     // Expiry filter
     const matchExpiry = !filterExpiry.value || item.daysLeft <= parseInt(filterExpiry.value)
 
-    // Storage type filter (UC 1.2.1-11)
+    // Storage type filter
     const matchStorage = !filterStorage.value || item.storageType === filterStorage.value
 
-    return matchText && matchCat && matchSource && matchExpiry && matchStorage
+    // Source filter (FR-3.2)
+    const matchSource = !filterSource.value || item.source === filterSource.value
+
+    return matchText && matchCat && matchExpiry && matchStorage && matchSource
   })
 
   if (sortBy.value === 'expiry') items = [...items].sort((a, b) => a.daysLeft - b.daysLeft)
-  if (sortBy.value === 'name')   items = [...items].sort((a, b) => a.name.localeCompare(b.name))
+  if (sortBy.value === 'name') items = [...items].sort((a, b) => a.name.localeCompare(b.name))
   return items
 })
 
 const hasActiveFilters = computed(() =>
-  filterCategory.value || filterSource.value || filterExpiry.value || filterStorage.value || searchQuery.value
+  filterCategory.value || filterExpiry.value || filterStorage.value || filterSource.value || searchQuery.value
 )
 
 function clearFilters() {
-  searchQuery.value    = ''
+  searchQuery.value = ''
   filterCategory.value = ''
-  filterSource.value   = ''
-  filterExpiry.value   = ''
-  filterStorage.value  = ''
+  filterExpiry.value = ''
+  filterStorage.value = ''
+  filterSource.value = ''
 }
 
 // ── Helpers ──
@@ -207,22 +100,21 @@ function urgencyLabel(daysLeft) {
 }
 
 // ── Claim flow ──
-const claimedId   = ref(null)
-const claimingId  = ref(null)
+const claimedId = ref(null)
+const claimingId = ref(null)
 
 function claimItem(item) {
   claimingId.value = item.id
   setTimeout(() => {
-    item.claimed   = true
-    claimedId.value  = item.id
+    item.claimed = true
+    claimedId.value = item.id
     claimingId.value = null
     showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
   }, 800)
 }
 
 // ── Item Detail Card
-const detailItem    = ref(null)
-const detailContext = ref('browse') // 'browse' | 'inventory'
+const detailItem = ref(null)
 
 // Toast / inline confirmation
 const confirmMsg = ref('')
@@ -233,10 +125,9 @@ function showConfirm(msg) {
   confirmTimer = setTimeout(() => confirmMsg.value = '', 4500)
 }
 
-function openDetail(item, context) {
-  detailItem.value    = { ...item }
-  detailContext.value = context
-  confirmMsg.value    = ''
+function openDetail(item) {
+  detailItem.value = { ...item }
+  confirmMsg.value = ''
 }
 function closeDetail() {
   detailItem.value = null
@@ -244,161 +135,100 @@ function closeDetail() {
 }
 
 function markAsUsed(item) {
-  const idx = myInventory.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) myInventory.value.splice(idx, 1)
+  markAsUsedById(item.id)
   showConfirm('✅ Item marked as used and removed from your inventory.')
   closeDetail()
 }
 
-function flagForDonation(item) {
-  const idx = myInventory.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) myInventory.value[idx] = { ...myInventory.value[idx], shared: true }
-  const exists = allItems.value.some(i => i.id === item.id)
-  if (!exists) {
-    allItems.value.unshift({
-      ...item, source: 'donation', donorName: CURRENT_USER,
-      status: 'available', shared: undefined,
-    })
-  }
-  if (detailItem.value?.id === item.id) detailItem.value = { ...detailItem.value, shared: true }
-  showConfirm('📤 Item flagged for donation and listed in the community browse.')
-}
 
 function addToMealPlan(item) {
-  showConfirm(`📋 "${item.name}" has been added to your meal plan.`)
+  showConfirm(`${item.name} has been added to your meal plan.`)
 }
 
-// ── Claim Confirmation Pop Up
-const showClaimModal   = ref(false)
-const claimTargetItem  = ref(null)
-const claimPickupTime  = ref('')
-const claimNote        = ref('')
-const claimSubmitted   = ref(false)
-
-function openClaimModal(item) {
-  claimTargetItem.value = item
-  claimPickupTime.value = ''
-  claimNote.value       = ''
-  claimSubmitted.value  = false
-  showClaimModal.value  = true
+// ── Helper: is the current user the donor of this donation item? ──
+function isOwnDonation(item) {
+  return item.source === 'donation' && item.donorName === CURRENT_USER
 }
 
-function closeClaimModal() {
-  showClaimModal.value = false
-  claimTargetItem.value = null
-}
-
-function submitClaim() {
-  const item = claimTargetItem.value
+// ── Claim Action ──
+function submitClaim(item) {
   if (!item) return
 
-  // Update status → reserved in allItems
-  const idx = allItems.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) {
-    allItems.value[idx] = {
-      ...allItems.value[idx],
-      status: 'reserved',
-      claimedBy: CURRENT_USER,
-      preferredPickup: claimPickupTime.value,
-      claimNote: claimNote.value,
-    }
+  // Guard: prevent the original donor from claiming their own item
+  if (isOwnDonation(item)) {
+    showToast('You cannot claim your own donated item.', 'warning', '⚠️')
+    return
   }
+
+  // Update status → reserved in allItems
+  claimItemById(item.id, CURRENT_USER)
   // Sync detailItem if open
   if (detailItem.value?.id === item.id) {
     detailItem.value = {
       ...detailItem.value,
       status: 'reserved',
       claimedBy: CURRENT_USER,
-      preferredPickup: claimPickupTime.value,
-      claimNote: claimNote.value,
     }
   }
-  claimSubmitted.value = true
+  showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
+
+  // Notify the donor (FR-3.4)
+  if (item.donorName && item.donorName !== CURRENT_USER) {
+    addNotification('donation', `Your item "${item.name}" has been claimed by ${CURRENT_USER}.`, 'browse')
+  }
 }
 
 // Cancel Claim
 function cancelClaim(item) {
-  const idx = allItems.value.findIndex(i => i.id === item.id)
-  if (idx !== -1) {
-    allItems.value[idx] = {
-      ...allItems.value[idx],
-      status: 'available',
-      claimedBy: undefined,
-      preferredPickup: undefined,
-      claimNote: undefined,
-    }
-  }
+  cancelClaimById(item.id)
+  
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, status: 'available', claimedBy: undefined }
   }
-  showConfirm('↩️ Your claim has been cancelled. The item is now available again.')
+  showConfirm('Your claim has been cancelled. The item is now available again.')
 }
 
-// ── Share Toggle (Inventory)
-function toggleShare(item) {
-  item.shared = !item.shared
-  showToast(
-    item.shared ? `"${item.name}" is now shared for claiming` : `"${item.name}" removed from sharing`,
-    item.shared ? 'success' : 'warning',
-    item.shared ? '🤝' : '📦'
-  )
-}
-
-const showCreateModal = ref(false)
-const createErrors    = ref({})
-
-const emptyForm = () => ({
-  name: '', qty: '', address: 'My Home', storageLocation: '', expiry: '', category: 'Other', notes: '',
-})
-const createForm = ref(emptyForm())
-
-function openCreate() {
-  createForm.value   = emptyForm()
-  createErrors.value = {}
-  showCreateModal.value = true
-}
-function closeCreate() { showCreateModal.value = false }
-
-function validateCreate() {
-  const e = {}
-  if (!createForm.value.name.trim())    e.name    = 'Item name is required.'
-  if (!createForm.value.qty.trim())     e.qty     = 'Quantity is required.'
-  if (!createForm.value.address.trim()) e.address = 'Pickup address is required.'
-  if (!createForm.value.expiry)         e.expiry  = 'Expiry date is required.'
-  createErrors.value = e
-  return Object.keys(e).length === 0
-}
-
-function submitCreate() {
-  if (!validateCreate()) return
-  const cat = CATEGORIES.find(c => c.label === createForm.value.category) || CATEGORIES[CATEGORIES.length - 1]
-  const newItem = {
-    id:              nextId++,
-    name:            createForm.value.name.trim(),
-    qty:             createForm.value.qty.trim(),
-    storageLocation: createForm.value.storageLocation.trim(),
-    address:         createForm.value.address.trim(),
-    expiry:          createForm.value.expiry,
-    daysLeft:        computeDaysLeft(createForm.value.expiry),
-    category:        cat.label,
-    icon:            cat.icon,
-    bg:              cat.bg,
-    notes:           createForm.value.notes.trim(),
-    shared:          false,
-    status:          'available',
+// ── Confirm Handover ──
+function confirmHandover(item) {
+  confirmHandoverById(item.id)
+  if (detailItem.value?.id === item.id) {
+    detailItem.value = { ...detailItem.value, status: 'completed' }
   }
-  myInventory.value.unshift({ ...newItem })
-  closeCreate()
-  activeTab.value = 'inventory'
+  showToast(`Handover confirmed! Item marked as completed ✅`, 'success', '🎉')
+  addNotification('donation', `You confirmed handover for "${item.name}".`, 'browse')
+  closeDetail()
 }
 
-const selectedCatIcon = computed(() => {
-  return CATEGORIES.find(c => c.label === createForm.value.category)?.icon ?? '🍱'
-})
+// ── Convert to Donation (FR-3.3) ──
+function convertToDonation(item) {
+  convertToDonationById(item.id)
+  if (detailItem.value?.id === item.id) {
+    detailItem.value = { ...detailItem.value, source: 'donation', convertedFromOwn: true }
+  }
+  showToast(`"${item.name}" is now listed as a donation 🤝`, 'success', '🎁')
+  addNotification('donation', `You converted "${item.name}" into a donation listing.`, 'browse')
+}
+
+// ── Cancel Donation — return item to inventory (FR-3.3) ──
+function cancelDonation(item) {
+  // Only allowed if no one has claimed the item yet
+  const idx = allItems.value.findIndex(i => i.id === item.id)
+  if (idx === -1 || allItems.value[idx].status !== 'available') {
+    showToast('This item has already been claimed and cannot be returned.', 'warning', '⚠️')
+    return
+  }
+  cancelDonationById(item.id)
+  if (detailItem.value?.id === item.id) {
+    detailItem.value = { ...detailItem.value, source: 'own', convertedFromOwn: undefined }
+  }
+  showToast(`"${item.name}" returned to your inventory 📦`, 'success', '↩️')
+  addNotification('inventory', `You returned "${item.name}" to your inventory.`, 'browse')
+}
+
 </script>
 
 <template>
-  <AppLayout current-page="browse" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
     <div class="browse-page">
 
       <!-- ── Page Header ── -->
@@ -409,222 +239,149 @@ const selectedCatIcon = computed(() => {
         </div>
       </div>
 
-      <!-- ── Tabs ── -->
-      <div class="tab-bar">
-        <button id="tab-browse" class="tab-btn" :class="{ active: activeTab === 'browse' }" @click="activeTab = 'browse'">
-          🛒 Browse Claimable Items
-          <span v-if="allItems.filter(i => i.status === 'available').length > 0" class="tab-count">
-            {{ allItems.filter(i => i.status === 'available').length }}
-          </span>
-        </button>
-        <button id="tab-inventory" class="tab-btn" :class="{ active: activeTab === 'inventory' }" @click="activeTab = 'inventory'">
-          📦 My Inventory
-          <span class="tab-count tab-count--neutral">{{ myInventory.length }}</span>
-        </button>
+      <!-- ── Filter Panel (FR-3.2) ── -->
+      <div class="filter-panel">
+        <div class="filter-title">🔎 Search &amp; Filter</div>
+        <div class="filter-row">
+          <!-- Text search -->
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input id="browse-search" v-model="searchQuery" class="form-input search-input" type="text"
+              placeholder="Search food, category, or location…" autocomplete="off" />
+            <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">✕</button>
+          </div>
+
+          <!-- Source filter (FR-3.2) -->
+          <select id="filter-source" v-model="filterSource" class="form-input filter-select">
+            <option value="">All Sources</option>
+            <option value="own">My Items</option>
+            <option value="donation">Community Donations</option>
+          </select>
+
+          <!-- Category filter -->
+          <select id="filter-category" v-model="filterCategory" class="form-input filter-select">
+            <option value="">All Categories</option>
+            <option v-for="cat in CATEGORIES" :key="cat.label" :value="cat.label">
+              {{ cat.icon }} {{ cat.label }}
+            </option>
+          </select>
+
+          <!-- Expiry filter -->
+          <select id="filter-expiry" v-model="filterExpiry" class="form-input filter-select">
+            <option value="">Any Expiry</option>
+            <option value="1">Expiring Within 1 Day</option>
+            <option value="3">Expiring Within 3 Days</option>
+            <option value="7">Expiring Within 7 Days</option>
+          </select>
+
+          <!-- Sort -->
+          <select id="sort-select" v-model="sortBy" class="form-input filter-select">
+            <option value="expiry">Expiry Date</option>
+            <option value="name">Name(A–Z)</option>
+          </select>
+
+          <!-- Storage type filter -->
+          <select id="filter-storage" v-model="filterStorage" class="form-input filter-select">
+            <option value="">Any Storage</option>
+            <option value="Fridge">Fridge</option>
+            <option value="Freezer">Freezer</option>
+            <option value="Pantry">Pantry</option>
+          </select>
+
+          <!-- Clear filters -->
+          <button v-if="hasActiveFilters" class="clear-filters-btn" @click="clearFilters">
+            ✕ Clear Filters
+          </button>
+        </div>
       </div>
 
-      <!-- ══════════════════════════════════════════
-           BROWSE TAB
-      ══════════════════════════════════════════ -->
-      <template v-if="activeTab === 'browse'">
+      <!-- Sort strip -->
+      <div class="sort-strip">
+        <span class="sort-badge">
+          {{ sortBy === 'expiry' ? 'Sorted by Expiry Date' : 'Sorted by Name' }}
+          <span v-if="filterExpiry"> · Expiring ≤ {{ filterExpiry }}d</span>
+          <span v-if="filterSource"> · {{ filterSource === 'own' ? 'My Items' : 'Donations' }}</span>
+        </span>
+        <span class="results-count">{{ filteredItems.length }} item{{ filteredItems.length !== 1 ? 's' : '' }}
+          found</span>
+      </div>
 
-        <!-- ── Filter Panel (UC 1.2.1-11) ── -->
-        <div class="filter-panel">
-          <div class="filter-title">🔎 Search &amp; Filter</div>
-          <div class="filter-row">
-            <!-- Text search -->
-            <div class="search-wrap">
-              <span class="search-icon">🔍</span>
-              <input
-                id="browse-search"
-                v-model="searchQuery"
-                class="form-input search-input"
-                type="text"
-                placeholder="Search food, category, or location…"
-                autocomplete="off"
-              />
-              <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">✕</button>
-            </div>
+      <!-- Empty state -->
+      <div v-if="filteredItems.length === 0" class="empty-state">
+        <h3>No items found</h3>
+        <p>No items match the selected filters. Please adjust your filters.</p>
+      </div>
 
-            <!-- Category filter -->
-            <select id="filter-category" v-model="filterCategory" class="form-input filter-select">
-              <option value="">All Categories</option>
-              <option v-for="cat in CATEGORIES" :key="cat.label" :value="cat.label">
-                {{ cat.icon }} {{ cat.label }}
-              </option>
-            </select>
-
-
-            <!-- Expiry filter (UC 1.2.1-11: Expiring Within N Days) -->
-            <select id="filter-expiry" v-model="filterExpiry" class="form-input filter-select">
-              <option value="">Any Expiry</option>
-              <option value="1">Expiring Within 1 Day</option>
-              <option value="3">Expiring Within 3 Days</option>
-              <option value="7">Expiring Within 7 Days</option>
-            </select>
-
-            <!-- Sort -->
-            <select id="sort-select" v-model="sortBy" class="form-input filter-select">
-              <option value="expiry">Sort: Expiry Date</option>
-              <option value="name">Sort: Name (A–Z)</option>
-            </select>
-
-            <!-- Storage type filter (UC 1.2.1-11) -->
-            <select id="filter-storage" v-model="filterStorage" class="form-input filter-select">
-              <option value="">Any Storage</option>
-              <option value="Fridge">Fridge</option>
-              <option value="Freezer">Freezer</option>
-              <option value="Pantry">Pantry</option>
-            </select>
-
-            <!-- Clear filters -->
-            <button v-if="hasActiveFilters" class="clear-filters-btn" @click="clearFilters">
-              ✕ Clear Filters
-            </button>
-          </div>
-        </div>
-
-        <!-- Sort strip -->
-        <div class="sort-strip">
-          <span class="sort-badge">
-            {{ sortBy === 'expiry' ? '📅 Sorted by Expiry Date' : '🔤 Sorted by Name' }}
-            <span v-if="filterSource === 'donation'"> · Donations Only</span>
-            <span v-else-if="filterSource === 'own'"> · Own Inventory</span>
-            <span v-if="filterExpiry"> · Expiring ≤ {{ filterExpiry }}d</span>
-          </span>
-          <span class="results-count">{{ filteredItems.length }} item{{ filteredItems.length !== 1 ? 's' : '' }} found</span>
-        </div>
-
-        <!-- Empty state (UC 1.2.1-11 message) -->
-        <div v-if="filteredItems.length === 0" class="empty-state">
-          <div class="empty-icon">🔍</div>
-          <h3>No items found</h3>
-          <p>No items match the selected filters. Please adjust your filters.</p>
-          <button v-if="hasActiveFilters" class="clear-filters-btn mt-1" @click="clearFilters">Clear Filters</button>
-        </div>
-
-        <!-- Food grid -->
-        <div v-else class="food-grid">
-          <div
-            v-for="item in filteredItems"
-            :key="item.id"
-            class="food-card"
-            :class="{ 'is-reserved': item.status === 'reserved', 'is-own': item.source === 'own' }"
-            :style="{ '--card-bg': item.bg }"
-            @click="openDetail(item, 'browse')"
-          >
-            <div class="card-top" :style="{ background: item.bg }">
-              <span class="food-icon">{{ item.icon }}</span>
-              <div class="card-top-badges">
-                <!-- Source badge (UC 1.2.1-11) -->
-                <span class="source-chip" :class="item.source === 'own' ? 'source-own' : 'source-donation'">
-                  {{ item.source === 'own' ? 'My Listing' : 'Donation' }}
-                </span>
-                <span
-                  class="urgency-chip"
-                  :style="{
-                    background:  urgencyColor(item.daysLeft) + '18',
-                    color:       urgencyColor(item.daysLeft),
-                    borderColor: urgencyColor(item.daysLeft) + '40'
-                  }"
-                >{{ urgencyLabel(item.daysLeft) }}</span>
-              </div>
-            </div>
-
-            <div class="card-body">
-              <div class="card-category">{{ item.category }}</div>
-              <h3 class="card-name">{{ item.name }}</h3>
-              <div class="card-meta-list">
-                <div class="card-meta-row"><span class="meta-icon">📦</span><span class="meta-text">{{ item.qty }}</span></div>
-                <div v-if="item.storageType" class="card-meta-row"><span class="meta-icon">🗄️</span><span class="meta-text">{{ item.storageType }}</span></div>
-                <div class="card-meta-row"><span class="meta-icon">📍</span><span class="meta-text address">{{ item.address }}</span></div>
-                <div class="card-meta-row"><span class="meta-icon">📅</span><span class="meta-text">Expires {{ item.expiry }}</span></div>
-              </div>
-            </div>
-
-            <!-- Status footer -->
-            <div class="card-footer" @click.stop>
-              <!-- Reserved by current user: show cancel -->
-              <div v-if="item.status === 'reserved' && item.claimedBy === CURRENT_USER" class="reserved-row">
-                <div class="reserved-badge">Reserved by You</div>
-                <button class="cancel-claim-btn" @click="cancelClaim(item)">Cancel</button>
-              </div>
-              <!-- Reserved by someone else -->
-              <div v-else-if="item.status === 'reserved'" class="reserved-badge reserved-badge--other">
-                🔒 Reserved
-              </div>
-              <!-- Available & not my own item → show claim button -->
-              <button
-                v-else-if="item.status === 'available' && item.source !== 'own'"
-                class="claim-btn"
-                @click="openClaimModal(item)"
-              >Request / Claim Item</button>
-              <!-- My own item -->
-              <div v-else-if="item.source === 'own'" class="own-badge">
-                My Listing
-              </div>
+      <!-- Unified food grid (FR-3.1) -->
+      <div v-else class="food-grid">
+        <div v-for="item in filteredItems" :key="item.id" class="food-card"
+          :class="{ 'is-reserved': item.status === 'reserved', 'is-own': item.source === 'own' }"
+          :style="{ '--card-bg': item.bg }" @click="openDetail(item)">
+          <div class="card-top" :style="{ background: item.bg }">
+            <span class="food-icon">{{ item.icon }}</span>
+            <div class="card-top-badges">
+              <!-- Source badge -->
+              <span class="source-chip" :class="item.source === 'own' ? 'source-own' : 'source-donation'">
+                {{ item.source === 'own' ? 'My Item' : 'Donation' }}
+              </span>
+              <span class="urgency-chip" :style="{
+                background: urgencyColor(item.daysLeft) + '18',
+                color: urgencyColor(item.daysLeft),
+                borderColor: urgencyColor(item.daysLeft) + '40'
+              }">{{ urgencyLabel(item.daysLeft) }}</span>
             </div>
           </div>
-        </div>
-      </template>
 
-      <!-- ══════════════════════════════════════════
-           INVENTORY TAB
-      ══════════════════════════════════════════ -->
-      <template v-else>
-        <div class="sort-strip">
-          <span class="sort-badge">📦 Your food items</span>
-          <span class="results-count">{{ myInventory.length }} item{{ myInventory.length !== 1 ? 's' : '' }}</span>
-        </div>
-
-        <div v-if="myInventory.length === 0" class="empty-state">
-          <div class="empty-icon">📦</div>
-          <h3>No items yet</h3>
-          <p>Add your first food item to get started.</p>
-        </div>
-
-        <div v-else class="food-grid">
-          <div
-            v-for="item in myInventory"
-            :key="item.id"
-            class="food-card"
-            :style="{ '--card-bg': item.bg }"
-            @click="openDetail(item, 'inventory')"
-          >
-            <div class="card-top" :style="{ background: item.bg }">
-              <span class="food-icon">{{ item.icon }}</span>
-              <span
-                class="urgency-chip"
-                :style="{
-                  background:  urgencyColor(item.daysLeft) + '18',
-                  color:       urgencyColor(item.daysLeft),
-                  borderColor: urgencyColor(item.daysLeft) + '40'
-                }"
-              >{{ urgencyLabel(item.daysLeft) }}</span>
+          <div class="card-body">
+            <div class="card-category">{{ item.category }}</div>
+            <h3 class="card-name">{{ item.name }}</h3>
+            <div class="card-meta-list">
+              <div class="card-meta-row"><span class="meta-icon">📦</span><span class="meta-text">{{ item.qty }}</span>
+              </div>
+              <div v-if="item.storageType" class="card-meta-row"><span class="meta-icon">🗄️</span><span
+                  class="meta-text">{{ item.storageType }}</span></div>
+              <div class="card-meta-row"><span class="meta-icon">📍</span><span class="meta-text address">{{
+                item.address }}</span></div>
+              <div class="card-meta-row"><span class="meta-icon">📅</span><span class="meta-text">Expires {{ item.expiry
+                  }}</span></div>
             </div>
+          </div>
 
-            <div class="card-body">
-              <div class="card-category">{{ item.category }}</div>
-              <h3 class="card-name">{{ item.name }}</h3>
-              <div class="card-meta-list">
-                <div class="card-meta-row"><span class="meta-icon">📦</span><span class="meta-text">{{ item.qty }}</span></div>
-                <div v-if="item.storageLocation" class="card-meta-row">
-                  <span class="meta-icon">🗄️</span><span class="meta-text">{{ item.storageLocation }}</span>
+          <!-- Unified card footer (FR-3.3) -->
+          <div class="card-footer" @click.stop>
+            <!-- DONATION items -->
+            <template v-if="item.source === 'donation'">
+              <!-- Donated by ME — cannot claim own item -->
+              <template v-if="item.donorName === CURRENT_USER">
+                <div v-if="item.status === 'available'" class="donor-actions">
+                  <span class="donor-badge">Your Donation</span>
+                  <button class="cancel-donation-btn" @click="cancelDonation(item)">Return to Inventory</button>
                 </div>
-                <div class="card-meta-row"><span class="meta-icon">📅</span><span class="meta-text">{{ item.expiry }}</span></div>
-              </div>
-            </div>
-
-            <div class="card-footer" @click.stop>
-              <div v-if="item.shared" class="shared-badge-row">
-                <div class="shared-badge">Shared</div>
-                <button class="unshare-btn" @click="toggleShare(item)">Unshare</button>
-              </div>
-              <button v-else class="share-btn" @click="toggleShare(item)">Share for Donation</button>
-            </div>
+                <div v-else-if="item.status === 'reserved'" class="reserved-row">
+                  <div class="reserved-badge">Claimed by {{ item.claimedBy }}</div>
+                  <button class="confirm-handover-btn" @click="confirmHandover(item)">Confirm Handover</button>
+                </div>
+              </template>
+              <!-- Donated by OTHERS — normal claim flow -->
+              <template v-else>
+                <div v-if="item.status === 'reserved' && item.claimedBy === CURRENT_USER" class="reserved-row">
+                  <div class="reserved-badge">Reserved by You</div>
+                  <button class="cancel-claim-btn" @click="cancelClaim(item)">Cancel</button>
+                </div>
+                <div v-else-if="item.status === 'reserved'" class="reserved-badge reserved-badge--other">
+                  Reserved
+                </div>
+                <button v-else-if="item.status === 'available'" class="claim-btn" @click="submitClaim(item)">Request /
+                  Claim Item</button>
+              </template>
+            </template>
+            <!-- OWN items -->
+            <template v-else-if="item.source === 'own'">
+              <button class="share-btn" @click="convertToDonation(item)">Convert to Donation</button>
+            </template>
           </div>
         </div>
-      </template>
+      </div>
 
     </div>
 
@@ -642,15 +399,13 @@ const selectedCatIcon = computed(() => {
               <span class="detail-icon">{{ detailItem.icon }}</span>
               <div class="detail-banner-text">
                 <div class="detail-chips-row">
-                  <span
-                    class="urgency-chip"
-                    :style="{
-                      background:  urgencyColor(detailItem.daysLeft) + '22',
-                      color:       urgencyColor(detailItem.daysLeft),
-                      borderColor: urgencyColor(detailItem.daysLeft) + '55'
-                    }"
-                  >{{ urgencyLabel(detailItem.daysLeft) }}</span>
-                  <span v-if="detailItem.source" class="source-chip" :class="detailItem.source === 'own' ? 'source-own' : 'source-donation'">
+                  <span class="urgency-chip" :style="{
+                    background: urgencyColor(detailItem.daysLeft) + '22',
+                    color: urgencyColor(detailItem.daysLeft),
+                    borderColor: urgencyColor(detailItem.daysLeft) + '55'
+                  }">{{ urgencyLabel(detailItem.daysLeft) }}</span>
+                  <span v-if="detailItem.source" class="source-chip"
+                    :class="detailItem.source === 'own' ? 'source-own' : 'source-donation'">
                     {{ detailItem.source === 'own' ? 'My Inventory' : 'Donation Listing' }}
                   </span>
                 </div>
@@ -691,54 +446,69 @@ const selectedCatIcon = computed(() => {
                   <span class="info-value info-notes">{{ detailItem.notes }}</span>
                 </div>
                 <!-- Pickup arrangement details if reserved -->
-                <div v-if="detailItem.status === 'reserved' && detailItem.claimedBy" class="info-card info-card--wide status-reserved-card">
+                <div v-if="detailItem.status === 'reserved' && detailItem.claimedBy"
+                  class="info-card info-card--wide status-reserved-card">
                   <span class="info-label">🔒 Claim Status</span>
                   <span class="info-value">Reserved by <strong>{{ detailItem.claimedBy }}</strong></span>
-                  <span v-if="detailItem.preferredPickup" class="info-value">⏰ Pickup: {{ detailItem.preferredPickup }}</span>
+                  <span v-if="detailItem.preferredPickup" class="info-value">⏰ Pickup: {{ detailItem.preferredPickup
+                  }}</span>
                   <span v-if="detailItem.claimNote" class="info-value info-notes">{{ detailItem.claimNote }}</span>
                 </div>
               </div>
 
-              <!-- ── Actions (UC 1.2.1-12 contextual) ── -->
+              <!-- ── Contextual Actions (FR-3.3) ── -->
               <div class="detail-actions">
 
-                <!-- BROWSE context: donation item -->
-                <template v-if="detailContext === 'browse'">
-                  <!-- Available & not mine: Claim button (UC 1.2.1-13) -->
-                  <button
-                    v-if="detailItem.status === 'available' && detailItem.source !== 'own'"
-                    class="claim-btn claim-btn--lg"
-                    @click="openClaimModal(detailItem)"
-                  >Request / Claim Item</button>
+                <!-- DONATION items -->
+                <template v-if="detailItem.source === 'donation'">
+                  <!-- Donated by ME — cannot claim own item -->
+                  <template v-if="detailItem.donorName === CURRENT_USER">
+                    <div v-if="detailItem.status === 'available'" class="donor-actions donor-actions--lg">
+                      <span class="donor-badge donor-badge--lg">Your Donation</span>
+                      <button class="cancel-donation-btn cancel-donation-btn--lg"
+                        @click="cancelDonation(detailItem)">Return to Inventory</button>
+                    </div>
+                    <div v-else-if="detailItem.status === 'reserved'" class="two-btn-row">
+                      <div class="reserved-badge reserved-badge--lg">Claimed by {{ detailItem.claimedBy }}</div>
+                      <button class="confirm-handover-btn confirm-handover-btn--lg"
+                        @click="confirmHandover(detailItem)">Confirm Handover</button>
+                    </div>
+                  </template>
+                  <!-- Donated by OTHERS — normal claim flow -->
+                  <template v-else>
+                    <button v-if="detailItem.status === 'available'" class="claim-btn claim-btn--lg"
+                      @click="submitClaim(detailItem)">Request / Claim Item</button>
 
-                  <!-- Reserved by me: cancel (UC 1.2.1-13) -->
-                  <div v-else-if="detailItem.status === 'reserved' && detailItem.claimedBy === CURRENT_USER" class="two-btn-row">
-                    <div class="reserved-badge reserved-badge--lg">Reserved by You</div>
-                    <button class="cancel-claim-btn cancel-claim-btn--lg" @click="cancelClaim(detailItem)">↩️ Cancel Claim</button>
-                  </div>
+                    <!-- Reserved by me -->
+                    <div v-else-if="detailItem.status === 'reserved' && detailItem.claimedBy === CURRENT_USER"
+                      class="two-btn-row">
+                      <div class="reserved-badge reserved-badge--lg">Reserved by You</div>
+                      <button class="cancel-claim-btn cancel-claim-btn--lg" @click="cancelClaim(detailItem)">Cancel
+                        Claim</button>
+                    </div>
 
-                  <!-- Reserved by someone else -->
-                  <div v-else-if="detailItem.status === 'reserved'" class="reserved-badge reserved-badge--lg">
-                    Currently Reserved
-                  </div>
-
-                  <!-- My own listing in browse -->
-                  <div v-else-if="detailItem.source === 'own'" class="own-badge own-badge--lg">
-                    This is your listing
-                  </div>
+                    <!-- Reserved by someone else -->
+                    <div v-else-if="detailItem.status === 'reserved'" class="reserved-badge reserved-badge--lg">
+                      Currently Reserved
+                    </div>
+                  </template>
                 </template>
 
-                <!-- INVENTORY context: contextual actions (UC 1.2.1-12) -->
-                <template v-else>
+                <!-- OWN items (FR-3.3: Mark as Used, Add to Meal Plan, Convert to Donation) -->
+                <template v-else-if="detailItem.source === 'own'">
                   <div class="action-group-label">Actions</div>
                   <div class="action-grid">
                     <button class="action-btn action-btn--used" @click="markAsUsed(detailItem)">
-                      <span class="action-btn-icon">✅</span>
+                      <span class="action-btn-icon"></span>
                       <span>Mark as Used</span>
                     </button>
                     <button class="action-btn action-btn--meal" @click="addToMealPlan(detailItem)">
-                      <span class="action-btn-icon">📋</span>
+                      <span class="action-btn-icon"></span>
                       <span>Add to Meal Plan</span>
+                    </button>
+                    <button class="action-btn action-btn--donate" @click="convertToDonation(detailItem)">
+                      <span class="action-btn-icon"></span>
+                      <span>Convert to Donation</span>
                     </button>
                   </div>
                 </template>
@@ -751,164 +521,7 @@ const selectedCatIcon = computed(() => {
       </Transition>
     </Teleport>
 
-    <!-- ══════════════════════════════════════════════════
-         CLAIM CONFIRMATION MODAL (UC 1.2.1-13)
-    ═══════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showClaimModal" class="modal-overlay" @click.self="closeClaimModal">
-          <div class="modal-sheet claim-modal" role="dialog" aria-modal="true">
-            <button class="modal-close" aria-label="Close" @click="closeClaimModal">✕</button>
 
-            <!-- Success state (UC 1.2.1-13 confirmation) -->
-            <div v-if="claimSubmitted" class="claim-success">
-              <div class="claim-success-icon">🎉</div>
-              <h2 class="claim-success-title">Claim Submitted!</h2>
-              <p class="claim-success-msg">
-                Your claim has been submitted. The donor will be notified.
-              </p>
-              <div v-if="claimPickupTime" class="claim-detail-pill">
-                ⏰ Preferred pickup: {{ claimPickupTime }}
-              </div>
-              <button class="claim-btn claim-btn--lg" style="margin-top:1.25rem;" @click="closeClaimModal">Done</button>
-            </div>
-
-            <!-- Form state -->
-            <template v-else>
-              <div class="claim-modal-header">
-                <span class="claim-item-icon">{{ claimTargetItem?.icon }}</span>
-                <div>
-                  <h2 class="create-title">Request / Claim Item</h2>
-                  <p class="create-sub">{{ claimTargetItem?.name }}</p>
-                </div>
-              </div>
-
-              <div class="create-body">
-                <!-- Item summary -->
-                <div class="claim-summary-grid">
-                  <div class="info-card">
-                    <span class="info-label">📦 Quantity</span>
-                    <span class="info-value">{{ claimTargetItem?.qty }}</span>
-                  </div>
-                  <div class="info-card">
-                    <span class="info-label">📅 Expires</span>
-                    <span class="info-value">{{ claimTargetItem?.expiry }}</span>
-                  </div>
-                  <div class="info-card info-card--wide">
-                    <span class="info-label">📍 Pickup From</span>
-                    <span class="info-value">{{ claimTargetItem?.address }}</span>
-                  </div>
-                </div>
-
-                <!-- Preferred pickup time -->
-                <div class="form-group">
-                  <label class="form-label" for="claim-pickup">⏰ Preferred Pickup Time <span class="optional">(optional)</span></label>
-                  <input
-                    id="claim-pickup"
-                    v-model="claimPickupTime"
-                    class="form-input"
-                    type="text"
-                    placeholder="e.g. Tomorrow morning, 9am – 11am"
-                  />
-                </div>
-
-                <!-- Note to donor -->
-                <div class="form-group">
-                  <label class="form-label" for="claim-note">📝 Note to Donor <span class="optional">(optional)</span></label>
-                  <textarea
-                    id="claim-note"
-                    v-model="claimNote"
-                    class="form-input form-textarea"
-                    rows="3"
-                    placeholder="Any message or special arrangement for the donor…"
-                  />
-                </div>
-
-                <div class="create-actions">
-                  <button type="button" class="detail-close-btn cancel-width" @click="closeClaimModal">Cancel</button>
-                  <button type="button" class="claim-btn claim-btn--lg" style="flex:1;" @click="submitClaim">
-                    Confirm Claim Request
-                  </button>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ══════════════════════════════════════════════════
-         CREATE ITEM MODAL
-    ═══════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showCreateModal" class="modal-overlay" @click.self="closeCreate">
-          <div class="modal-sheet create-modal" role="dialog" aria-modal="true">
-            <button class="modal-close" aria-label="Close" @click="closeCreate">✕</button>
-
-            <div class="create-header">
-              <span class="create-header-icon">{{ selectedCatIcon }}</span>
-              <div>
-                <h2 class="create-title">Add Food Item</h2>
-                <p class="create-sub">Fill in the details to add to your inventory</p>
-              </div>
-            </div>
-
-            <div class="create-body">
-              <form id="create-item-form" @submit.prevent="submitCreate">
-                <div class="form-group" :class="{ error: createErrors.name }">
-                  <label class="form-label" for="ci-name">Item Name *</label>
-                  <input id="ci-name" v-model="createForm.name" class="form-input" type="text" placeholder="e.g. Banana Bread" autocomplete="off"/>
-                  <span v-if="createErrors.name" class="form-error">{{ createErrors.name }}</span>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label" for="ci-category">Category</label>
-                    <select id="ci-category" v-model="createForm.category" class="form-input form-select">
-                      <option v-for="cat in CATEGORIES" :key="cat.label" :value="cat.label">{{ cat.icon }} {{ cat.label }}</option>
-                    </select>
-                  </div>
-                  <div class="form-group" :class="{ error: createErrors.qty }">
-                    <label class="form-label" for="ci-qty">Quantity *</label>
-                    <input id="ci-qty" v-model="createForm.qty" class="form-input" type="text" placeholder="e.g. 1 loaf"/>
-                    <span v-if="createErrors.qty" class="form-error">{{ createErrors.qty }}</span>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group" :class="{ error: createErrors.expiry }">
-                    <label class="form-label" for="ci-expiry">Expiry Date *</label>
-                    <input id="ci-expiry" v-model="createForm.expiry" class="form-input" type="date"/>
-                    <span v-if="createErrors.expiry" class="form-error">{{ createErrors.expiry }}</span>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ci-storage">Storage Location <span class="optional">(optional)</span></label>
-                    <input id="ci-storage" v-model="createForm.storageLocation" class="form-input" type="text" placeholder="e.g. Refrigerator"/>
-                  </div>
-                </div>
-
-                <div class="form-group" :class="{ error: createErrors.address }">
-                  <label class="form-label" for="ci-address">Pickup Address *</label>
-                  <input id="ci-address" v-model="createForm.address" class="form-input" type="text" placeholder="e.g. Jl. Sudirman No. 12"/>
-                  <span v-if="createErrors.address" class="form-error">{{ createErrors.address }}</span>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label" for="ci-notes">Notes <span class="optional">(optional)</span></label>
-                  <textarea id="ci-notes" v-model="createForm.notes" class="form-input form-textarea" rows="3" placeholder="Allergen info, storage tips, pickup times…"/>
-                </div>
-
-                <div class="create-actions">
-                  <button type="button" class="detail-close-btn cancel-width" @click="closeCreate">Cancel</button>
-                  <button type="submit" class="claim-btn claim-btn--lg" style="flex:1;">Add Item</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
   </AppLayout>
 </template>
@@ -931,6 +544,7 @@ const selectedCatIcon = computed(() => {
   justify-content: space-between;
   gap: 1rem;
 }
+
 .page-header h1 {
   font-size: 1.5rem;
   font-weight: 800;
@@ -940,7 +554,12 @@ const selectedCatIcon = computed(() => {
   margin-bottom: 3px;
   line-height: 1.2;
 }
-.header-sub { font-size: 0.78rem; color: #9aaa9a; }
+
+.header-sub {
+  font-size: 0.78rem;
+  color: #9aaa9a;
+}
+
 .header-add-btn {
   padding: 10px 18px;
   background: linear-gradient(135deg, #2da12b, #3dc43b);
@@ -952,11 +571,15 @@ const selectedCatIcon = computed(() => {
   font-family: 'Inter', sans-serif;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 3px 10px rgba(45,161,43,0.25);
+  box-shadow: 0 3px 10px rgba(45, 161, 43, 0.25);
   transition: opacity 0.2s, transform 0.15s;
   flex-shrink: 0;
 }
-.header-add-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.header-add-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
 
 /* ── Tab bar ── */
 .tab-bar {
@@ -966,6 +589,7 @@ const selectedCatIcon = computed(() => {
   padding: 4px;
   gap: 4px;
 }
+
 .tab-btn {
   flex: 1;
   display: flex;
@@ -983,13 +607,19 @@ const selectedCatIcon = computed(() => {
   color: #7a8a7a;
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
-.tab-btn:hover { background: #fff; color: #2da12b; }
+
+.tab-btn:hover {
+  background: #fff;
+  color: #2da12b;
+}
+
 .tab-btn.active {
   background: #fff;
   color: #2da12b;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
 }
+
 .tab-count {
   background: #2da12b;
   color: #fff;
@@ -1000,7 +630,11 @@ const selectedCatIcon = computed(() => {
   min-width: 18px;
   text-align: center;
 }
-.tab-count--neutral { background: #e0e7e0; color: #5a6a5a; }
+
+.tab-count--neutral {
+  background: #e0e7e0;
+  color: #5a6a5a;
+}
 
 /* ── Filter panel (UC 1.2.1-11) ── */
 .filter-panel {
@@ -1012,6 +646,7 @@ const selectedCatIcon = computed(() => {
   flex-direction: column;
   gap: 0.65rem;
 }
+
 .filter-title {
   font-size: 0.8rem;
   font-weight: 700;
@@ -1019,12 +654,14 @@ const selectedCatIcon = computed(() => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
 .filter-row {
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
   align-items: center;
 }
+
 .search-wrap {
   position: relative;
   flex: 2;
@@ -1032,13 +669,19 @@ const selectedCatIcon = computed(() => {
   display: flex;
   align-items: center;
 }
+
 .search-icon {
   position: absolute;
   left: 12px;
   font-size: 0.9rem;
   pointer-events: none;
 }
-.search-input { padding-left: 36px !important; padding-right: 36px; }
+
+.search-input {
+  padding-left: 36px !important;
+  padding-right: 36px;
+}
+
 .search-clear {
   position: absolute;
   right: 10px;
@@ -1049,13 +692,17 @@ const selectedCatIcon = computed(() => {
   font-size: 0.8rem;
   padding: 4px;
 }
-.search-clear:hover { color: #ef4444; }
+
+.search-clear:hover {
+  color: #ef4444;
+}
 
 .filter-select {
   flex: 1;
   min-width: 150px;
   cursor: pointer;
 }
+
 .clear-filters-btn {
   padding: 9px 14px;
   background: #fef2f2;
@@ -1069,8 +716,14 @@ const selectedCatIcon = computed(() => {
   white-space: nowrap;
   transition: background 0.2s;
 }
-.clear-filters-btn:hover { background: #fee2e2; }
-.mt-1 { margin-top: 0.75rem; }
+
+.clear-filters-btn:hover {
+  background: #fee2e2;
+}
+
+.mt-1 {
+  margin-top: 0.75rem;
+}
 
 /* ── Sort strip ── */
 .sort-strip {
@@ -1079,6 +732,7 @@ const selectedCatIcon = computed(() => {
   justify-content: space-between;
   gap: 0.5rem;
 }
+
 .sort-badge {
   display: inline-flex;
   align-items: center;
@@ -1091,7 +745,12 @@ const selectedCatIcon = computed(() => {
   border-radius: 99px;
   border: 1px solid #e8ede8;
 }
-.results-count { font-size: 0.75rem; color: #9aaa9a; font-weight: 500; }
+
+.results-count {
+  font-size: 0.75rem;
+  color: #9aaa9a;
+  font-weight: 500;
+}
 
 /* ── Food grid ── */
 .food-grid {
@@ -1111,13 +770,20 @@ const selectedCatIcon = computed(() => {
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   cursor: pointer;
 }
+
 .food-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.09);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.09);
   border-color: #c8dcc8;
 }
-.food-card.is-reserved { opacity: 0.72; }
-.food-card.is-own { border-color: #b8d4f8; }
+
+.food-card.is-reserved {
+  opacity: 0.72;
+}
+
+.food-card.is-own {
+  border-color: #b8d4f8;
+}
 
 .card-top {
   display: flex;
@@ -1126,9 +792,19 @@ const selectedCatIcon = computed(() => {
   padding: 0.9rem 0.9rem 0.7rem;
   gap: 0.4rem;
 }
-.card-top-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 
-.food-icon { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+.card-top-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.food-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
 
 /* Source chip (UC 1.2.1-11) */
 .source-chip {
@@ -1139,11 +815,13 @@ const selectedCatIcon = computed(() => {
   border: 1px solid;
   white-space: nowrap;
 }
+
 .source-donation {
   background: #eff6ff;
   color: #3b82f6;
   border-color: #bfdbfe;
 }
+
 .source-own {
   background: #f0f9ff;
   color: #0ea5e9;
@@ -1159,7 +837,11 @@ const selectedCatIcon = computed(() => {
   white-space: nowrap;
 }
 
-.card-body { padding: 0 1rem 0.75rem; flex: 1; }
+.card-body {
+  padding: 0 1rem 0.75rem;
+  flex: 1;
+}
+
 .card-category {
   font-size: 0.62rem;
   font-weight: 800;
@@ -1168,6 +850,7 @@ const selectedCatIcon = computed(() => {
   color: #2da12b;
   margin-bottom: 3px;
 }
+
 .card-name {
   font-size: 0.95rem;
   font-weight: 800;
@@ -1177,14 +860,40 @@ const selectedCatIcon = computed(() => {
   background: none;
   -webkit-text-fill-color: unset;
 }
-.card-meta-list { display: flex; flex-direction: column; gap: 3px; }
-.card-meta-row  { display: flex; align-items: flex-start; gap: 5px; }
-.meta-icon { font-size: 0.8rem; flex-shrink: 0; line-height: 1.5; }
-.meta-text { font-size: 0.75rem; color: #5a6a5a; line-height: 1.4; }
-.meta-text.address { color: #7a8a7a; font-style: italic; }
+
+.card-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.card-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.meta-icon {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.meta-text {
+  font-size: 0.75rem;
+  color: #5a6a5a;
+  line-height: 1.4;
+}
+
+.meta-text.address {
+  color: #7a8a7a;
+  font-style: italic;
+}
 
 /* ── Card footer ── */
-.card-footer { padding: 0 0.9rem 0.9rem; }
+.card-footer {
+  padding: 0 0.9rem 0.9rem;
+}
 
 .claim-btn {
   width: 100%;
@@ -1200,11 +909,26 @@ const selectedCatIcon = computed(() => {
   transition: opacity 0.2s, transform 0.15s;
   min-height: 40px;
 }
-.claim-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-.claim-btn--lg { padding: 13px; font-size: 0.95rem; border-radius: 12px; width: 100%; }
+
+.claim-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.claim-btn--lg {
+  padding: 13px;
+  font-size: 0.95rem;
+  border-radius: 12px;
+  width: 100%;
+}
 
 /* Reserved badge */
-.reserved-row { display: flex; align-items: center; gap: 6px; }
+.reserved-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .reserved-badge {
   flex: 1;
   padding: 8px 10px;
@@ -1219,8 +943,103 @@ const selectedCatIcon = computed(() => {
   align-items: center;
   justify-content: center;
 }
-.reserved-badge--other { width: 100%; flex: unset; }
-.reserved-badge--lg { padding: 13px; font-size: 0.9rem; border-radius: 12px; }
+
+.reserved-badge--other {
+  width: 100%;
+  flex: unset;
+}
+
+.reserved-badge--lg {
+  padding: 13px;
+  font-size: 0.9rem;
+  border-radius: 12px;
+}
+
+/* Donor-specific UI (FR-3.3) */
+.donor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.donor-actions--lg {
+  gap: 8px;
+}
+
+.donor-badge {
+  flex: 1;
+  padding: 10px;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 10px;
+  color: #166534;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donor-badge--lg {
+  padding: 10px;
+  font-size: 0.9rem;
+  border-radius: 12px;
+}
+
+.cancel-donation-btn {
+  padding: 10px;
+  border: 1.5px solid #fde68a;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 0.73rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  min-height: 40px;
+}
+
+.cancel-donation-btn:hover {
+  border-color: #f59e0b;
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.cancel-donation-btn--lg {
+  padding: 11px 16px;
+  font-size: 0.85rem;
+  border-radius: 12px;
+}
+
+/* Confirm Handover */
+.confirm-handover-btn {
+  padding: 8px 11px;
+  background: linear-gradient(135deg, #2da12b, #3dc43b);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.73rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.15s;
+  min-height: 40px;
+}
+
+.confirm-handover-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.confirm-handover-btn--lg {
+  padding: 11px 16px;
+  font-size: 0.85rem;
+  border-radius: 12px;
+}
 
 /* Cancel claim */
 .cancel-claim-btn {
@@ -1237,8 +1056,17 @@ const selectedCatIcon = computed(() => {
   transition: border-color 0.2s, color 0.2s;
   min-height: 40px;
 }
-.cancel-claim-btn:hover { border-color: #ef4444; color: #ef4444; }
-.cancel-claim-btn--lg { padding: 11px 16px; font-size: 0.85rem; border-radius: 12px; }
+
+.cancel-claim-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.cancel-claim-btn--lg {
+  padding: 11px 16px;
+  font-size: 0.85rem;
+  border-radius: 12px;
+}
 
 /* Own badge */
 .own-badge {
@@ -1252,7 +1080,12 @@ const selectedCatIcon = computed(() => {
   font-weight: 700;
   text-align: center;
 }
-.own-badge--lg { padding: 13px; font-size: 0.9rem; border-radius: 12px; }
+
+.own-badge--lg {
+  padding: 13px;
+  font-size: 0.9rem;
+  border-radius: 12px;
+}
 
 /* Share button */
 .share-btn {
@@ -1269,10 +1102,19 @@ const selectedCatIcon = computed(() => {
   transition: background 0.2s, border-color 0.2s, color 0.2s;
   min-height: 40px;
 }
-.share-btn:hover { border-color: #2da12b; color: #2da12b; }
+
+.share-btn:hover {
+  border-color: #2da12b;
+  color: #2da12b;
+}
 
 /* Shared state */
-.shared-badge-row { display: flex; align-items: center; gap: 6px; }
+.shared-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .shared-badge {
   flex: 1;
   padding: 10px;
@@ -1288,7 +1130,13 @@ const selectedCatIcon = computed(() => {
   align-items: center;
   justify-content: center;
 }
-.shared-badge--lg { padding: 13px; font-size: 0.9rem; border-radius: 12px; }
+
+.shared-badge--lg {
+  padding: 13px;
+  font-size: 0.9rem;
+  border-radius: 12px;
+}
+
 .unshare-btn {
   padding: 10px 12px;
   border: 1.5px solid #e8ede8;
@@ -1303,10 +1151,19 @@ const selectedCatIcon = computed(() => {
   white-space: nowrap;
   min-height: 40px;
 }
-.unshare-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+.unshare-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
 
 /* ── Add item CTA ── */
-.add-item-cta { display: flex; justify-content: center; padding: 0.5rem 0 0; }
+.add-item-cta {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 0;
+}
+
 .add-btn {
   padding: 12px 28px;
   background: linear-gradient(135deg, #2da12b, #3dc43b);
@@ -1317,16 +1174,39 @@ const selectedCatIcon = computed(() => {
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(45,161,43,0.25);
+  box-shadow: 0 4px 14px rgba(45, 161, 43, 0.25);
   transition: opacity 0.2s, transform 0.15s;
 }
-.add-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.add-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
 
 /* ── Empty state ── */
-.empty-state { text-align: center; padding: 3rem 1rem; color: #9aaa9a; }
-.empty-icon  { font-size: 3rem; margin-bottom: 0.75rem; }
-.empty-state h3 { font-size: 1rem; font-weight: 700; color: #5a6a5a; margin-bottom: 0.3rem; background: none; -webkit-text-fill-color: unset; }
-.empty-state p  { font-size: 0.83rem; }
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9aaa9a;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+}
+
+.empty-state h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #5a6a5a;
+  margin-bottom: 0.3rem;
+  background: none;
+  -webkit-text-fill-color: unset;
+}
+
+.empty-state p {
+  font-size: 0.83rem;
+}
 
 /* ═══════════════════════════════════════════════════
    MODAL BASE
@@ -1342,21 +1222,23 @@ const selectedCatIcon = computed(() => {
   z-index: 1000;
   padding: 1rem;
 }
+
 .modal-sheet {
   position: relative;
   background: #fff;
   border-radius: 20px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
   width: 100%;
   max-height: 92vh;
   overflow-y: auto;
 }
+
 .modal-close {
   position: absolute;
   top: 14px;
   right: 14px;
   z-index: 10;
-  background: rgba(255,255,255,0.88);
+  background: rgba(255, 255, 255, 0.88);
   border: 1.5px solid #e8ede8;
   border-radius: 50%;
   width: 34px;
@@ -1369,21 +1251,56 @@ const selectedCatIcon = computed(() => {
   color: #5a6a5a;
   transition: background 0.2s, color 0.2s;
 }
-.modal-close:hover { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
+
+.modal-close:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #ef4444;
+}
 
 /* ── Detail modal ── */
-.detail-modal { max-width: 520px; }
+.detail-modal {
+  max-width: 520px;
+}
+
 .detail-banner {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1.75rem 1.5rem 1.25rem;
 }
-.detail-icon { font-size: 3.5rem; line-height: 1; flex-shrink: 0; }
-.detail-banner-text { display: flex; flex-direction: column; gap: 5px; }
-.detail-chips-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.detail-category { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #2da12b; margin-top: 3px; }
-.detail-body { padding: 0 1.5rem 1.5rem; }
+
+.detail-icon {
+  font-size: 3.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.detail-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.detail-chips-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.detail-category {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2da12b;
+  margin-top: 3px;
+}
+
+.detail-body {
+  padding: 0 1.5rem 1.5rem;
+}
+
 .detail-name {
   font-size: 1.35rem;
   font-weight: 800;
@@ -1405,8 +1322,16 @@ const selectedCatIcon = computed(() => {
   padding: 10px 14px;
   margin-bottom: 0.85rem;
 }
-.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s; }
-.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; }
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.3s;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+}
 
 /* Info grid */
 .detail-info-grid {
@@ -1415,6 +1340,7 @@ const selectedCatIcon = computed(() => {
   gap: 0.55rem;
   margin-bottom: 1.1rem;
 }
+
 .info-card {
   background: #f8faf8;
   border: 1px solid #e8ede8;
@@ -1424,20 +1350,68 @@ const selectedCatIcon = computed(() => {
   flex-direction: column;
   gap: 3px;
 }
-.info-card--wide { grid-column: 1 / -1; }
-.status-reserved-card { background: #fff7ed; border-color: #fed7aa; }
-.info-label { font-size: 0.65rem; font-weight: 700; color: #9aaa9a; text-transform: uppercase; letter-spacing: 0.06em; }
-.info-value { font-size: 0.85rem; font-weight: 600; color: #1a1a1a; line-height: 1.4; }
-.info-notes { font-style: italic; color: #5a6a5a; }
+
+.info-card--wide {
+  grid-column: 1 / -1;
+}
+
+.status-reserved-card {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.info-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #9aaa9a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.info-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.4;
+}
+
+.info-notes {
+  font-style: italic;
+  color: #5a6a5a;
+}
 
 /* Detail actions */
-.detail-actions { display: flex; flex-direction: column; gap: 0.55rem; }
-.two-btn-row    { display: flex; gap: 0.55rem; }
-.two-btn-row > * { flex: 1; }
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.two-btn-row {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.two-btn-row>* {
+  flex: 1;
+}
 
 /* Action grid (inventory contextual actions) */
-.action-group-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #9aaa9a; margin-bottom: -2px; }
-.action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.action-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9aaa9a;
+  margin-bottom: -2px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
 .action-btn {
   display: flex;
   flex-direction: column;
@@ -1454,11 +1428,34 @@ const selectedCatIcon = computed(() => {
   transition: background 0.2s, border-color 0.2s, color 0.2s;
   color: #5a6a5a;
 }
-.action-btn-icon { font-size: 1.3rem; }
-.action-btn--used:hover   { background: #f0faf0; border-color: #2da12b; color: #2da12b; }
-.action-btn--meal:hover   { background: #eff6ff; border-color: #3b82f6; color: #3b82f6; }
-.action-btn--donate:hover { background: #fff7ed; border-color: #f59e0b; color: #b45309; }
-.action-btn--share:hover  { background: #f0fdf4; border-color: #22c55e; color: #16a34a; }
+
+.action-btn-icon {
+  font-size: 1.3rem;
+}
+
+.action-btn--used:hover {
+  background: #f0faf0;
+  border-color: #2da12b;
+  color: #2da12b;
+}
+
+.action-btn--meal:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.action-btn--donate:hover {
+  background: #fff7ed;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.action-btn--share:hover {
+  background: #f0fdf4;
+  border-color: #22c55e;
+  color: #16a34a;
+}
 
 .detail-close-btn {
   width: 100%;
@@ -1473,17 +1470,29 @@ const selectedCatIcon = computed(() => {
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
 }
-.detail-close-btn:hover { border-color: #c0ccc0; color: #1a1a1a; }
+
+.detail-close-btn:hover {
+  border-color: #c0ccc0;
+  color: #1a1a1a;
+}
 
 /* ── Claim confirmation modal (UC 1.2.1-13) ── */
-.claim-modal { max-width: 500px; }
+.claim-modal {
+  max-width: 500px;
+}
+
 .claim-modal-header {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1.5rem 1.5rem 0;
 }
-.claim-item-icon { font-size: 2.8rem; line-height: 1; }
+
+.claim-item-icon {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
 .claim-summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1500,7 +1509,11 @@ const selectedCatIcon = computed(() => {
   padding: 2.5rem 2rem;
   gap: 0.6rem;
 }
-.claim-success-icon { font-size: 4rem; }
+
+.claim-success-icon {
+  font-size: 4rem;
+}
+
 .claim-success-title {
   font-size: 1.4rem;
   font-weight: 800;
@@ -1508,7 +1521,14 @@ const selectedCatIcon = computed(() => {
   background: none;
   -webkit-text-fill-color: unset;
 }
-.claim-success-msg { font-size: 0.9rem; color: #5a6a5a; line-height: 1.55; max-width: 300px; }
+
+.claim-success-msg {
+  font-size: 0.9rem;
+  color: #5a6a5a;
+  line-height: 1.55;
+  max-width: 300px;
+}
+
 .claim-detail-pill {
   background: #f0faf0;
   border: 1.5px solid #86efac;
@@ -1519,20 +1539,40 @@ const selectedCatIcon = computed(() => {
   padding: 6px 16px;
 }
 
-/* ── Create modal ── */
-.create-modal { max-width: 540px; }
-.create-header { display: flex; align-items: center; gap: 1rem; padding: 1.5rem 1.5rem 0; }
-.create-header-icon { font-size: 3rem; line-height: 1; }
-.create-title { font-size: 1.25rem; font-weight: 800; color: #1a1a1a; margin-bottom: 2px; background: none; -webkit-text-fill-color: unset; }
-.create-sub   { font-size: 0.78rem; color: #9aaa9a; }
-.create-body  { padding: 1.1rem 1.5rem 1.5rem; }
-
 /* Forms */
-.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 0.8rem; }
-.form-group.error .form-input { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.08); }
-.form-label { font-size: 0.73rem; font-weight: 700; color: #5a6a5a; text-transform: uppercase; letter-spacing: 0.05em; }
-.optional   { font-weight: 500; text-transform: none; letter-spacing: 0; color: #b0bdb0; }
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 0.8rem;
+}
+
+.form-group.error .form-input {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
+}
+
+.form-label {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #5a6a5a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #b0bdb0;
+}
+
 .form-input {
   padding: 10px 13px;
   border: 1.5px solid #e8ede8;
@@ -1546,37 +1586,105 @@ const selectedCatIcon = computed(() => {
   width: 100%;
   box-sizing: border-box;
 }
-.form-input:focus { border-color: #2da12b; box-shadow: 0 0 0 3px rgba(45,161,43,0.1); }
-.form-select  { cursor: pointer; }
-.form-textarea { resize: vertical; min-height: 76px; }
-.form-error   { font-size: 0.72rem; color: #ef4444; font-weight: 500; }
 
-.create-actions { display: flex; gap: 0.6rem; margin-top: 0.25rem; }
-.cancel-width   { flex: 0 0 auto; width: auto; padding: 13px 20px; }
+.form-input:focus {
+  border-color: #2da12b;
+  box-shadow: 0 0 0 3px rgba(45, 161, 43, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 76px;
+}
+
+.form-error {
+  font-size: 0.72rem;
+  color: #ef4444;
+  font-weight: 500;
+}
 
 /* ── Modal transition ── */
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
-.modal-fade-enter-active .modal-sheet, .modal-fade-leave-active .modal-sheet {
-  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.22s;
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.22s ease;
 }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
-.modal-fade-enter-from .modal-sheet { transform: translateY(16px) scale(0.97); opacity: 0; }
-.modal-fade-leave-to  .modal-sheet  { transform: translateY(10px) scale(0.98); opacity: 0; }
+
+.modal-fade-enter-active .modal-sheet,
+.modal-fade-leave-active .modal-sheet {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-from .modal-sheet {
+  transform: translateY(16px) scale(0.97);
+  opacity: 0;
+}
+
+.modal-fade-leave-to .modal-sheet {
+  transform: translateY(10px) scale(0.98);
+  opacity: 0;
+}
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-  .browse-page { padding: 1rem; gap: 0.9rem; }
-  .food-grid   { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-  .tab-btn     { font-size: 0.78rem; padding: 9px 10px; }
-  .filter-row  { flex-direction: column; }
-  .filter-select, .search-wrap { width: 100%; flex: unset; min-width: unset; }
+  .browse-page {
+    padding: 1rem;
+    gap: 0.9rem;
+  }
+
+  .food-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .tab-btn {
+    font-size: 0.78rem;
+    padding: 9px 10px;
+  }
+
+  .filter-row {
+    flex-direction: column;
+  }
+
+  .filter-select,
+  .search-wrap {
+    width: 100%;
+    flex: unset;
+    min-width: unset;
+  }
 }
+
 @media (max-width: 540px) {
-  .food-grid         { grid-template-columns: 1fr; }
-  .form-row          { grid-template-columns: 1fr; }
-  .detail-info-grid  { grid-template-columns: 1fr; }
-  .info-card--wide   { grid-column: unset; }
-  .action-grid       { grid-template-columns: 1fr 1fr; }
-  .claim-summary-grid { grid-template-columns: 1fr; }
+  .food-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-card--wide {
+    grid-column: unset;
+  }
+
+  .action-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .claim-summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

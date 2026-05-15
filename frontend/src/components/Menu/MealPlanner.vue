@@ -4,8 +4,6 @@ import AppLayout        from '@/components/Layout/AppLayout.vue'
 import { useToast }        from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
 
-const emit = defineEmits(['navigate'])
-
 const { showToast } = useToast()
 const { addNotification, unreadCount } = useNotifications()
 
@@ -182,7 +180,7 @@ function confirmPlan() {
 </script>
 
 <template>
-  <AppLayout current-page="meal-planner" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
 
     <div class="planner-page">
 

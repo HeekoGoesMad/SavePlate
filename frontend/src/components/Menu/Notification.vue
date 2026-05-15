@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast }         from '@/composables/useToast'
 
-const emit = defineEmits(['navigate'])
+const router = useRouter()
 
 // ── Shared notification store ──
 const { notifications, unreadCount, markRead: markReadShared, markAllRead: markAllReadShared } = useNotifications()
@@ -65,7 +66,7 @@ function markAllRead() {
 
 function clickNotification(n) {
   markRead(n.id)
-  emit('navigate', n.link)
+  router.push({ name: n.link })
 }
 
 function loadMore() {
@@ -84,7 +85,7 @@ function savePreferences() {
 </script>
 
 <template>
-  <AppLayout current-page="notifications" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
 
     <div class="notif-page">
 
