@@ -255,16 +255,16 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 .app-shell {
   display: flex;
   min-height: 100vh;
-  background: #f0f4f0;
+  background: #f4f7f4;
   font-family: 'Inter', sans-serif;
 }
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 240px;
+  width: 248px;
   min-height: 100vh;
   background: #fff;
-  border-right: 1px solid #e8ede8;
+  border-right: 1px solid #e6ece6;
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -274,17 +274,17 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 }
 
 .sidebar-logo {
-  padding: 1.5rem 3.75rem 1rem;
+  padding: 1.5rem 1.5rem 1.125rem;
   border-bottom: 1px solid #f0f4f0;
 }
-.sidebar-logo img { max-width: 140px; }
+.sidebar-logo img { max-width: 140px; display: block; }
 
 .sidebar-nav {
   flex: 1;
-  padding: 0.75rem 0.75rem;
+  padding: 0.75rem 0.625rem;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
 }
 
@@ -292,64 +292,77 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 9px 11px;
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #5a6a5a;
-  font-size: 0.88rem;
+  color: #6b7280;
+  font-size: 0.875rem;
   font-weight: 500;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 150ms ease, color 150ms ease;
   text-align: left;
   width: 100%;
   position: relative;
+  letter-spacing: -0.01em;
 }
-.nav-item:hover { background: #f0f7f0; color: #2da12b; }
-.nav-item.active {
-  background: linear-gradient(135deg, rgba(45,161,43,0.12), rgba(61,196,59,0.08));
+.nav-item:hover {
+  background: #f0f7f0;
   color: #2da12b;
+}
+.nav-item:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: -2px;
+}
+.nav-item.active {
+  background: linear-gradient(135deg, rgba(45,161,43,0.10), rgba(61,196,59,0.06));
+  color: #1e8a1c;
   font-weight: 700;
 }
 .nav-item.active::before {
   content: '';
   position: absolute;
-  left: 0; top: 20%; bottom: 20%;
+  left: 0; top: 18%; bottom: 18%;
   width: 3px;
-  background: #2da12b;
+  background: linear-gradient(180deg, #2da12b, #3dc43b);
   border-radius: 0 3px 3px 0;
 }
 
-.nav-icon { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
+.nav-icon { font-size: 1rem; width: 22px; text-align: center; flex-shrink: 0; line-height: 1; }
 .nav-label { flex: 1; }
 .nav-badge {
   background: #ef4444; color: #fff;
-  font-size: 0.65rem; font-weight: 800;
-  padding: 2px 6px; border-radius: 99px;
+  font-size: 0.625rem; font-weight: 800;
+  padding: 1px 6px; border-radius: 99px;
   min-width: 18px; text-align: center;
+  line-height: 1.6;
 }
 
 /* ── Sidebar footer ── */
-.sidebar-footer { padding: 1rem 0.75rem; border-top: 1px solid #f0f4f0; }
+.sidebar-footer { padding: 0.875rem 0.625rem; border-top: 1px solid #f0f4f0; }
 .user-chip {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px; border-radius: 12px; background: #f6f8f6;
+  padding: 9px 10px; border-radius: 12px; background: #f6f8f6;
+  transition: background 150ms;
+  cursor: default;
 }
+.user-chip:hover { background: #eef4ee; }
 .avatar {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 34px; height: 34px; border-radius: 50%;
   background: linear-gradient(135deg, #2da12b, #3dc43b);
-  color: white; font-size: 0.8rem; font-weight: 800;
+  color: white; font-size: 0.75rem; font-weight: 800;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  letter-spacing: 0.02em;
 }
-.user-info { display: flex; flex-direction: column; overflow: hidden; }
-.user-name { font-size: 0.82rem; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-role { font-size: 0.7rem; color: #9aaa9a; }
+.user-info { display: flex; flex-direction: column; overflow: hidden; gap: 1px; }
+.user-name { font-size: 0.8rem; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role { font-size: 0.68rem; color: #9ca3af; }
 
 /* ── Main content ── */
 .main-content {
   flex: 1;
-  margin-left: 240px;
+  margin-left: 248px;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -360,7 +373,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 
 @media (max-width: 860px) {
   .sidebar { display: none; }
-  .main-content { margin-left: 0; padding-bottom: 70px; padding-top: 56px; }
+  .main-content { margin-left: 0; padding-bottom: 72px; padding-top: 56px; }
 
   /* ── Top bar ── */
   .mobile-topbar {
@@ -370,8 +383,10 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 56px;
-    background: #fff;
-    border-bottom: 1px solid #e8ede8;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid #e6ece6;
     padding: 0 1rem;
     z-index: 110;
   }
@@ -385,37 +400,40 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
     position: relative;
     width: 38px; height: 38px;
     border-radius: 10px;
-    border: 1.5px solid #e8ede8;
+    border: 1.5px solid #e6ece6;
     background: #fff;
-    font-size: 1.1rem;
+    font-size: 1rem;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 150ms, box-shadow 150ms;
   }
   .bell-btn:hover,
   .bell-btn.active {
     border-color: #2da12b;
-    box-shadow: 0 0 0 3px rgba(45,161,43,0.1);
+    box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
   }
+  .bell-btn:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
   .bell-badge {
     position: absolute;
     top: -5px; right: -5px;
     background: #ef4444; color: #fff;
-    font-size: 0.58rem; font-weight: 800;
+    font-size: 0.56rem; font-weight: 800;
     font-family: 'Inter', sans-serif;
     min-width: 16px; height: 16px;
     padding: 0 3px;
     border-radius: 99px;
     display: flex; align-items: center; justify-content: center;
     border: 2px solid #fff;
+    line-height: 1;
   }
 
   .avatar-sm {
     width: 32px; height: 32px; border-radius: 50%;
     background: linear-gradient(135deg, #2da12b, #3dc43b);
-    color: white; font-size: 0.72rem; font-weight: 800;
+    color: white; font-size: 0.7rem; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
+    letter-spacing: 0.02em;
   }
 
   /* ── Bottom tabs ── */
@@ -424,24 +442,33 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
     position: fixed;
     bottom: 0; left: 0; right: 0;
     height: 64px;
-    background: #fff;
-    border-top: 1px solid #e8ede8;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid #e6ece6;
     z-index: 110;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .tab-item {
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 2px; border: none; background: transparent;
-    color: #9aaa9a; font-size: 0.62rem; font-family: 'Inter', sans-serif;
-    cursor: pointer; position: relative; transition: color 0.15s;
+    color: #9ca3af; font-size: 0.6rem; font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer; position: relative;
+    transition: color 150ms;
+    min-height: 44px;
+    padding: 0 4px;
   }
   .tab-item.active { color: #2da12b; }
-  .tab-icon { font-size: 1.15rem; }
+  .tab-item:focus-visible { outline: 2px solid #2da12b; outline-offset: -2px; border-radius: 8px; }
+  .tab-icon { font-size: 1.15rem; line-height: 1; }
   .tab-badge {
     position: absolute; top: 6px; left: 50%; transform: translateX(6px);
-    background: #ef4444; color: #fff; font-size: 0.55rem; font-weight: 800;
+    background: #ef4444; color: #fff; font-size: 0.53rem; font-weight: 800;
     padding: 1px 4px; border-radius: 99px;
+    line-height: 1.5;
   }
 }
 </style>

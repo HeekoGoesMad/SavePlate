@@ -418,24 +418,26 @@ function doLogout() {
 .page-header h1 {
   font-size: 1.5rem;
   font-weight: 800;
-  color: #1a1a1a;
+  color: #111827;
   background: none;
   -webkit-text-fill-color: unset;
   margin-bottom: 3px;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
-.subtitle { font-size: 0.85rem; color: #7a8a7a; }
+.subtitle { font-size: 0.83rem; color: #9ca3af; font-weight: 500; }
+
 
 /* ── Card ── */
 .settings-card {
   background: #fff;
-  border: 1px solid #e8ede8;
+  border: 1px solid #e6ece6;
   border-radius: 18px;
-  padding: 1.4rem 1.5rem;
-  transition: box-shadow 0.2s;
+  padding: 1.375rem 1.5rem;
+  transition: box-shadow 200ms;
 }
 .settings-card:hover {
-  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
 /* ── Card header ── */
@@ -465,28 +467,32 @@ function doLogout() {
   flex-shrink: 0;
 }
 .card-header h2 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  color: #1a1a1a;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
 /* ── Edit button ── */
 .btn-edit {
   padding: 7px 16px;
-  border-radius: 10px;
+  border-radius: 9px;
   border: 1.5px solid #2da12b;
   background: transparent;
   color: #2da12b;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 150ms, color 150ms, box-shadow 150ms;
+  letter-spacing: -0.01em;
 }
 .btn-edit:hover {
   background: #2da12b;
   color: #fff;
+  box-shadow: 0 2px 8px rgba(45,161,43,0.2);
 }
+.btn-edit:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 /* ── Info grid (view mode) ── */
 .info-grid { display: flex; flex-direction: column; gap: 0; }
@@ -497,15 +503,15 @@ function doLogout() {
   padding: 0.65rem 0;
 }
 .info-label {
-  font-size: 0.82rem;
-  color: #7a8a7a;
+  font-size: 0.8rem;
+  color: #6b7280;
   font-weight: 600;
   min-width: 80px;
 }
 .info-value {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #111827;
   text-align: right;
 }
 
@@ -520,26 +526,26 @@ function doLogout() {
 .edit-form { display: flex; flex-direction: column; gap: 0.85rem; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-group label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #5a6a5a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: -0.01em;
 }
 .form-input {
-  padding: 10px 14px;
-  border: 1.5px solid #e8ede8;
+  padding: 10px 13px;
+  border: 1.5px solid #e5e7eb;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-family: 'Inter', sans-serif;
-  color: #1a1a1a;
-  background: #fafbfa;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  color: #111827;
+  background: #f9fafb;
+  transition: border-color 150ms, box-shadow 150ms, background 150ms;
   outline: none;
 }
+.form-input:hover { border-color: #d1d5db; }
 .form-input:focus {
   border-color: #2da12b;
-  box-shadow: 0 0 0 3px rgba(45,161,43,0.1);
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
   background: #fff;
 }
 .edit-actions {
@@ -567,13 +573,14 @@ function doLogout() {
 }
 .toggle-info { display: flex; flex-direction: column; gap: 2px; }
 .toggle-label {
-  font-size: 0.88rem;
+  font-size: 0.87rem;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 .toggle-desc {
-  font-size: 0.76rem;
-  color: #9aaa9a;
+  font-size: 0.74rem;
+  color: #9ca3af;
   line-height: 1.4;
 }
 
@@ -610,22 +617,24 @@ function doLogout() {
 .btn-ghost {
   padding: 6px 14px;
   border-radius: 9px;
-  border: 1.5px solid #e8ede8;
+  border: 1.5px solid #e5e7eb;
   background: transparent;
-  color: #5a6a5a;
-  font-size: 0.8rem;
+  color: #6b7280;
+  font-size: 0.78rem;
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: border-color 150ms, color 150ms, background 150ms;
   flex-shrink: 0;
+  letter-spacing: -0.01em;
 }
 .btn-ghost:hover {
   border-color: #2da12b;
   color: #2da12b;
   background: #f0faf0;
 }
+.btn-ghost:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 /* ── About section ── */
 .about-content { display: flex; flex-direction: column; gap: 0; }
@@ -637,13 +646,13 @@ function doLogout() {
 }
 .link-row { cursor: default; }
 .about-key {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #3a3a3a;
+  color: #374151;
 }
 .about-val {
-  font-size: 0.85rem;
-  color: #7a8a7a;
+  font-size: 0.83rem;
+  color: #9ca3af;
   text-align: right;
 }
 
@@ -652,30 +661,35 @@ function doLogout() {
   padding: 9px 20px;
   border-radius: 10px;
   border: none;
-  background: linear-gradient(135deg, #2da12b, #3dc43b);
+  background: linear-gradient(135deg, #2da12b, #22c55e);
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(45,161,43,0.28);
-  transition: opacity 0.15s;
+  transition: opacity 150ms, transform 150ms;
+  letter-spacing: -0.01em;
 }
-.btn-save:hover { opacity: 0.9; }
+.btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-save:active { transform: translateY(0); }
+.btn-save:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
 
 .btn-cancel {
   padding: 9px 20px;
   border-radius: 10px;
-  border: 1.5px solid #e8ede8;
+  border: 1.5px solid #e5e7eb;
   background: transparent;
-  color: #5a6a5a;
-  font-size: 0.85rem;
+  color: #6b7280;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 150ms, border-color 150ms;
+  letter-spacing: -0.01em;
 }
-.btn-cancel:hover { background: #f0f4f0; }
+.btn-cancel:hover { background: #f3f4f6; border-color: #d1d5db; }
+.btn-cancel:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
 
 /* ── Logout row ── */
 .logout-row {
@@ -684,22 +698,26 @@ function doLogout() {
   padding-bottom: 1rem;
 }
 .btn-logout {
-  padding: 12px 28px;
+  padding: 11px 28px;
   border-radius: 12px;
   border: 2px solid #ef4444;
   background: transparent;
   color: #ef4444;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 800;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 150ms, color 150ms, box-shadow 150ms, transform 150ms;
+  letter-spacing: -0.01em;
 }
 .btn-logout:hover {
   background: #ef4444;
   color: #fff;
   box-shadow: 0 4px 16px rgba(239,68,68,0.28);
+  transform: translateY(-1px);
 }
+.btn-logout:active { transform: translateY(0); }
+.btn-logout:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
 
 /* ── Mobile ── */
 @media (max-width: 860px) {
@@ -740,27 +758,28 @@ function doLogout() {
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  padding: 12px 14px;
-  border: 1.5px solid #e8ede8;
+  padding: 11px 14px;
+  border: 1.5px solid #e5e7eb;
   border-radius: 12px;
-  background: #fafbfa;
+  background: #f9fafb;
   cursor: pointer;
   font-family: 'Inter', sans-serif;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color 150ms, background 150ms, box-shadow 150ms;
   width: 100%;
 }
 
 .visibility-option:hover {
-  border-color: #b6deb6;
+  border-color: #a7c6a7;
   background: #f4fbf4;
 }
 
 .visibility-option.selected {
   border-color: #2da12b;
   background: #f0faf0;
-  box-shadow: 0 0 0 3px rgba(45,161,43,0.08);
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.1);
 }
+.visibility-option:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 .vis-icon {
   font-size: 1.25rem;
@@ -777,14 +796,15 @@ function doLogout() {
 }
 
 .vis-details strong {
-  font-size: 0.87rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
 .vis-details span {
-  font-size: 0.75rem;
-  color: #9aaa9a;
+  font-size: 0.73rem;
+  color: #9ca3af;
   line-height: 1.35;
 }
 
@@ -804,6 +824,8 @@ function doLogout() {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.38);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -818,16 +840,17 @@ function doLogout() {
   width: 100%;
   text-align: center;
   font-family: 'Inter', sans-serif;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+  border: 1px solid #e6ece6;
 }
 .modal-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
-.modal-title { font-size: 1.2rem; font-weight: 800; color: #1a1a1a; margin-bottom: 0.5rem; }
-.modal-body  { font-size: 0.88rem; color: #7a8a7a; line-height: 1.55; margin-bottom: 1.5rem; }
+.modal-title { font-size: 1.15rem; font-weight: 800; color: #111827; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+.modal-body  { font-size: 0.86rem; color: #6b7280; line-height: 1.55; margin-bottom: 1.5rem; }
 .modal-actions {
   display: flex;
   gap: 0.75rem;
 }
-.modal-actions .btn-cancel  { flex: 1; font-size: 0.9rem; }
+.modal-actions .btn-cancel  { flex: 1; font-size: 0.88rem; }
 .btn-logout-confirm {
   flex: 1;
   padding: 10px;
@@ -835,13 +858,16 @@ function doLogout() {
   border: none;
   background: #ef4444;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 150ms, transform 150ms;
+  letter-spacing: -0.01em;
 }
-.btn-logout-confirm:hover { opacity: 0.88; }
+.btn-logout-confirm:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-logout-confirm:active { transform: translateY(0); }
+.btn-logout-confirm:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
 
 /* Modal animation */
 .modal-enter-active { transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1); }

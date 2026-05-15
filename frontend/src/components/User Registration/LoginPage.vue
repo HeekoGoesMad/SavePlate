@@ -148,7 +148,7 @@ const handleLogin = async () => {
   display: flex;
   min-height: 100vh;
   font-family: 'Inter', sans-serif;
-  background-color: #f8fafc; /* Lighter background for the whole page */
+  background-color: #f4f7f4;
 }
 
 /* ── Left panel ── */
@@ -158,62 +158,72 @@ const handleLogin = async () => {
   align-items: center;
   justify-content: center;
   padding: 3rem;
-  background: linear-gradient(135deg, #047857 0%, #15803d 100%); /* Clean, modern emerald gradient */
+  background: linear-gradient(150deg, #064e3b 0%, #047857 40%, #15803d 100%);
   color: white;
   position: relative;
   overflow: hidden;
 }
 
-/* Subtle background circles for a premium feel */
-.panel-left::before, .panel-left::after {
+/* Decorative orbs */
+.panel-left::before {
   content: '';
   position: absolute;
+  width: 600px; height: 600px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-}
-.panel-left::before {
-  width: 500px;
-  height: 500px;
-  top: -150px;
-  left: -150px;
+  background: radial-gradient(circle, rgba(255,255,255,0.07) 0%, transparent 70%);
+  top: -200px; left: -200px;
 }
 .panel-left::after {
-  width: 400px;
-  height: 400px;
-  bottom: -100px;
-  right: -50px;
+  content: '';
+  position: absolute;
+  width: 450px; height: 450px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+  bottom: -150px; right: -100px;
 }
 
 .panel-content {
-  max-width: 440px;
+  max-width: 420px;
   position: relative;
   z-index: 10;
+  animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .badge {
-  display: inline-block;
-  padding: 8px 16px;
-  margin-bottom: 1.5rem;
-  background: rgba(255, 255, 255, 0.15);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin-bottom: 1.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
 }
 
 .panel-content h1 {
   font-size: 3rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.08;
   margin-bottom: 1.25rem;
+  letter-spacing: -0.03em;
+  background: none;
+  -webkit-text-fill-color: white;
 }
 
 .panel-content p {
   font-size: 1rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
   margin-bottom: 2.5rem;
 }
 
@@ -221,18 +231,23 @@ const handleLogin = async () => {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 2.5rem;
+  gap: 0.875rem;
 }
 
 .feature-list li {
-  font-size: 0.95rem;
+  font-size: 0.93rem;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.875rem;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  transition: background 200ms;
 }
-
+.feature-list li:hover { background: rgba(255,255,255,0.13); }
 
 /* ── Right panel ── */
 .panel-right {
@@ -241,63 +256,70 @@ const handleLogin = async () => {
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  background: #f4f7f4;
 }
 
 .form-card {
   width: 100%;
-  max-width: 440px;
-  padding: 3rem 2.5rem;
+  max-width: 420px;
+  padding: 2.75rem 2.5rem;
   background: #fff;
-  border-radius: 24px; /* Softer, larger borders */
-  box-shadow: 0 12px 32px rgba(0,0,0,0.05); /* Modern, subtle shadow */
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
+  border: 1px solid #e6ece6;
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .logo {
   display: flex;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.75rem;
 }
 
 .form-card h2 {
-  font-size: 1.75rem;
+  font-size: 1.625rem;
   font-weight: 800;
-  color: #0f172a; /* Darker slate color */
+  color: #111827;
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .subtitle {
   text-align: center;
-  color: #64748b;
-  font-size: 0.95rem;
-  margin-bottom: 2rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 1.875rem;
+  line-height: 1.5;
 }
 
 /* ── Fields ── */
 .field {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.125rem;
 }
 
 .field label {
   display: block;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
+  margin-bottom: 6px;
+  font-size: 0.83rem;
   font-weight: 600;
-  color: #334155;
+  color: #374151;
+  letter-spacing: -0.01em;
 }
 
 .field input,
 .password-wrap input {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
-  font-size: 0.95rem;
+  padding: 12px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 11px;
+  background: #f9fafb;
+  font-size: 0.925rem;
   font-family: 'Inter', sans-serif;
-  color: #0f172a;
+  color: #111827;
   outline: none;
-  transition: all 0.2s ease;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
 .password-wrap input {
@@ -306,12 +328,17 @@ const handleLogin = async () => {
 
 .field input:focus,
 .password-wrap input:focus {
-  border-color: #10b981;
+  border-color: #2da12b;
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); /* Nice focus ring */
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
 }
 
-/* ── Password with show/hide ── */
+.field input:hover:not(:focus),
+.password-wrap input:hover:not(:focus) {
+  border-color: #d1d5db;
+}
+
+/* ── Password show/hide ── */
 .password-wrap {
   position: relative;
   display: flex;
@@ -324,45 +351,49 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #94a3b8;
+  color: #9ca3af;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition: color 150ms, background 150ms;
+  flex-shrink: 0;
 }
 
 .toggle-btn:hover {
-  color: #10b981;
-  background: #f1f5f9;
+  color: #2da12b;
+  background: #f0fdf4;
 }
+.toggle-btn:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 .toggle-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.75;
 }
 
 /* ── Forgot ── */
 .forgot {
   text-align: right;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
+  margin-top: -0.25rem;
 }
 
 .forgot a {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: #10b981;
+  color: #2da12b;
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color 150ms;
+  padding: 2px 0;
 }
 
-.forgot a:hover {
-  color: #059669;
-}
+.forgot a:hover { color: #1e8a1c; }
+.forgot a:focus-visible { outline: 2px solid #2da12b; border-radius: 3px; outline-offset: 2px; }
 
-/* ── Buttons ── */
+/* ── Primary Button ── */
 .btn-primary {
   width: 100%;
   padding: 14px;

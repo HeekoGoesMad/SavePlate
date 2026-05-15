@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 // ─────────────────────────────────────────────────────────
 // Inventory.vue  –  Use Case 2: Manage Food Inventory
 // Allows users to add, edit, mark as used, donate, and
@@ -835,21 +835,15 @@ function canDonate(item) {
 </template>
 
 <style scoped>
-/* ─────────────────────────────────────────────
-   INVENTORY PAGE  – matches Dashboard.vue theme
-   Font: Inter (loaded in style.css)
-   Colors: same as Dashboard (white panels,
-           green accent #2da12b, clean borders)
-───────────────────────────────────────────── */
-
 /* ── Page wrapper ── */
 .inventory-page {
-  padding: 1.5rem;
+  padding: 1.75rem 1.5rem;
   max-width: 1100px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  font-family: 'Inter', sans-serif;
 }
 
 /* ── Page Header ── */
@@ -863,46 +857,51 @@ function canDonate(item) {
 .page-header h1 {
   font-size: 1.5rem;
   font-weight: 800;
-  color: #1a1a1a;
-  /* Override global h1 gradient */
+  color: #111827;
   background: none;
   -webkit-text-fill-color: unset;
   margin-bottom: 3px;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
-.sub { font-size: 0.78rem; color: #9aaa9a; }
+.sub { font-size: 0.78rem; color: #9ca3af; font-weight: 500; }
 
-/* ── Summary Cards Row (same as Dashboard) ── */
+/* ── Summary Cards Row ── */
 .cards-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
+  gap: 0.875rem;
 }
 .summary-card {
   background: var(--card-bg, #fff);
-  border: 1px solid #e8ede8;
+  border: 1px solid rgba(0,0,0,0.04);
   border-radius: 14px;
   padding: 1rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  transition: transform 0.2s, box-shadow 0.2s;
+  gap: 0.875rem;
+  transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms;
+  cursor: default;
 }
 .summary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.07);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
 }
-.card-icon  { font-size: 1.6rem; line-height: 1; }
-.card-value { font-size: 1.6rem; font-weight: 900; color: var(--card-color, #3b82f6); line-height: 1; }
-.card-label { font-size: 0.75rem; font-weight: 700; color: #2a2a2a; margin-top: 3px; }
-.card-unit  { font-size: 0.65rem; color: #9aaa9a; }
+.card-icon  { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.card-value { font-size: 1.65rem; font-weight: 900; color: var(--card-color, #3b82f6); line-height: 1; letter-spacing: -0.03em; }
+.card-label { font-size: 0.73rem; font-weight: 700; color: #374151; margin-top: 3px; letter-spacing: -0.01em; }
+.card-unit  { font-size: 0.63rem; color: #9ca3af; font-weight: 500; }
 
-/* ── Controls Bar (Filter + Sort) ── */
+/* ── Controls Bar ── */
 .controls-bar {
   display: flex;
-  gap: 1rem;
+  gap: 0.875rem;
   align-items: center;
   flex-wrap: wrap;
+  padding: 0.875rem 1rem;
+  background: #fff;
+  border: 1px solid #e6ece6;
+  border-radius: 12px;
 }
 .filter-group {
   display: flex;
@@ -910,49 +909,50 @@ function canDonate(item) {
   gap: 0.5rem;
 }
 .control-label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: #555;
+  color: #6b7280;
   white-space: nowrap;
 }
 .select-control {
   padding: 6px 10px;
-  border: 1.5px solid #e8ede8;
+  border: 1.5px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-family: inherit;
-  background: #fff;
-  color: #1a1a1a;
+  background: #f9fafb;
+  color: #111827;
   cursor: pointer;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 150ms, box-shadow 150ms;
 }
-.select-control:focus { border-color: #2da12b; }
-
-/* ── Panel (same style as Dashboard .panel) ── */
-.panel {
+.select-control:hover { border-color: #d1d5db; }
+.select-control:focus {
+  border-color: #2da12b;
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
   background: #fff;
-  border: 1px solid #e8ede8;
-  border-radius: 16px;
-  padding: 1.1rem;
 }
+
+/* ── Panel Head ── */
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.9rem;
+  padding: 0.25rem 0;
 }
 .panel-head h2 {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #1a1a1a;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 .item-count {
-  font-size: 0.75rem;
-  color: #9aaa9a;
-  background: #f0f4f0;
+  font-size: 0.73rem;
+  color: #9ca3af;
+  background: #f3f4f6;
   padding: 2px 10px;
   border-radius: 99px;
+  font-weight: 500;
 }
 
 /* ── Empty State ── */
@@ -960,14 +960,17 @@ function canDonate(item) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  padding: 2.5rem 1rem;
+  gap: 0.875rem;
+  padding: 3rem 1rem;
   text-align: center;
+  background: #fff;
+  border: 1px solid #e6ece6;
+  border-radius: 16px;
 }
-.empty-icon { font-size: 2.5rem; }
-.empty-state p { font-size: 0.88rem; color: #7a8a7a; }
+.empty-icon { font-size: 2.75rem; }
+.empty-state p { font-size: 0.88rem; color: #6b7280; line-height: 1.5; }
 
-/* ── Food cards grid (matches BrowseFood) ── */
+/* ── Food cards grid ── */
 .food-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -976,17 +979,17 @@ function canDonate(item) {
 
 .food-card {
   background: #fff;
-  border: 1.5px solid #e8ede8;
+  border: 1.5px solid #e6ece6;
   border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms, border-color 150ms;
 }
 .food-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 28px rgba(0,0,0,0.09);
-  border-color: #c8dcc8;
+  border-color: #bcd8bc;
 }
 .food-card.urgent {
   border-left: 3px solid #ef4444;
@@ -1000,12 +1003,13 @@ function canDonate(item) {
 }
 .food-icon { font-size: 2rem; line-height: 1; }
 .urgency-chip {
-  font-size: 0.68rem;
+  font-size: 0.67rem;
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 99px;
   border: 1px solid;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .card-body {
@@ -1013,37 +1017,38 @@ function canDonate(item) {
   flex: 1;
 }
 .card-category {
-  font-size: 0.65rem;
+  font-size: 0.63rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   color: #2da12b;
   margin-bottom: 4px;
 }
 .card-name {
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 800;
-  color: #1a1a1a;
-  margin-bottom: 0.65rem;
+  color: #111827;
+  margin-bottom: 0.625rem;
   line-height: 1.25;
   background: none;
   -webkit-text-fill-color: unset;
+  letter-spacing: -0.01em;
 }
 
 .card-meta-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 .card-meta-row {
   display: flex;
   align-items: flex-start;
   gap: 6px;
 }
-.meta-icon { font-size: 0.82rem; flex-shrink: 0; line-height: 1.5; }
+.meta-icon { font-size: 0.78rem; flex-shrink: 0; line-height: 1.5; }
 .meta-text {
-  font-size: 0.78rem;
-  color: #5a6a5a;
+  font-size: 0.76rem;
+  color: #6b7280;
   line-height: 1.45;
 }
 
@@ -1053,9 +1058,9 @@ function canDonate(item) {
 
 /* Donate hint text */
 .donate-hint {
-  margin-top: 6px;
-  font-size: 0.68rem;
-  color: #f59e0b;
+  margin-top: 5px;
+  font-size: 0.66rem;
+  color: #d97706;
   font-weight: 600;
 }
 
@@ -1077,90 +1082,103 @@ function canDonate(item) {
 }
 .btn-action {
   padding: 5px 10px;
-  font-size: 0.72rem;
+  font-size: 0.71rem;
   font-weight: 700;
   font-family: inherit;
   border: none;
   border-radius: 7px;
   cursor: pointer;
-  transition: opacity 0.18s, transform 0.15s;
+  transition: opacity 150ms, transform 150ms cubic-bezier(0.16,1,0.3,1);
   white-space: nowrap;
+  min-height: 28px;
 }
-.btn-action:hover { opacity: 0.8; transform: translateY(-1px); }
-.btn-action:active { transform: scale(0.95); }
+.btn-action:hover:not(.btn-disabled) { opacity: 0.8; transform: translateY(-1px); }
+.btn-action:active:not(.btn-disabled) { transform: scale(0.96); opacity: 1; }
+.btn-action:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 .btn-action.edit   { background: #eff6ff; color: #3b82f6; }
-.btn-action.donate { background: #f0faf0; color: #43c73a; }
+.btn-action.donate { background: #f0faf0; color: #2da12b; }
 .btn-action.used   { background: #f0fdf4; color: #16a34a; }
-
-.btn-action.delete { background: #fef2f2; color: #ef4444; font-size: 0.85rem; padding: 5px 8px; }
+.btn-action.delete { background: #fef2f2; color: #ef4444; }
 
 /* ── Primary & Secondary Buttons ── */
 .btn-primary {
-  background: #2da12b;
+  background: linear-gradient(135deg, #2da12b, #22c55e);
   color: #fff;
   border: none;
   padding: 9px 18px;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: inherit;
   border-radius: 9px;
   cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
+  transition: opacity 150ms, transform 150ms cubic-bezier(0.16,1,0.3,1), box-shadow 150ms;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(45,161,43,0.2);
+  letter-spacing: -0.01em;
 }
-.btn-primary:hover { background: #25881f; transform: translateY(-1px); }
-.btn-primary:active { transform: scale(0.97); }
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(45,161,43,0.28); }
+.btn-primary:active { transform: scale(0.97); opacity: 1; }
+.btn-primary:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
 
 .btn-secondary {
-  background: #f0f4f0;
-  color: #3a4a3a;
-  border: none;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1.5px solid #e5e7eb;
   padding: 9px 18px;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: inherit;
   border-radius: 9px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 150ms, border-color 150ms;
+  letter-spacing: -0.01em;
 }
-.btn-secondary:hover { background: #e2e8e2; }
+.btn-secondary:hover { background: #e9eaec; border-color: #d1d5db; }
+.btn-secondary:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
 
 .btn-donate {
-  background: #2da12b;
+  background: linear-gradient(135deg, #2da12b, #22c55e);
   color: #fff;
   border: none;
   padding: 9px 18px;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: inherit;
   border-radius: 9px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: opacity 150ms, transform 150ms;
+  box-shadow: 0 2px 8px rgba(45,161,43,0.2);
+  letter-spacing: -0.01em;
 }
-.btn-donate:hover { background: #25881f; }
+.btn-donate:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-donate:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
 
 .btn-danger {
   background: #ef4444;
   color: #fff;
   border: none;
   padding: 9px 18px;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 700;
   font-family: inherit;
   border-radius: 9px;
   cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
+  transition: background 150ms, transform 150ms, box-shadow 150ms;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
-.btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+.btn-danger:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(239,68,68,0.28); }
 .btn-danger:active { transform: scale(0.97); }
+.btn-danger:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
 
 /* ── Modal Overlay ── */
 .modal-overlay {
   position: fixed;
-  inset: 0;                       /* top/right/bottom/left all = 0 */
-  background: rgba(0, 0, 0, 0.45);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1171,55 +1189,59 @@ function canDonate(item) {
 /* ── Modal Box ── */
 .modal {
   background: #fff;
-  border-radius: 18px;
+  border-radius: 20px;
   width: 100%;
   max-width: 460px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
+  border: 1px solid #e6ece6;
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 1.25rem 0.75rem;
+  padding: 1.1rem 1.25rem 0.875rem;
   border-bottom: 1px solid #f0f4f0;
 }
 .modal-header h3 {
   font-size: 1rem;
   font-weight: 800;
-  color: #1a1a1a;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 .modal-close {
-  background: #f0f4f0;
+  background: #f3f4f6;
   border: none;
   border-radius: 50%;
   width: 30px;
   height: 30px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: background 150ms, color 150ms;
+  color: #6b7280;
 }
-.modal-close:hover { background: #e2e8e2; }
+.modal-close:hover { background: #e5e7eb; color: #111827; }
+.modal-close:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
 .modal-body {
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.875rem;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 0.65rem;
-  padding: 0.85rem 1.25rem 1.1rem;
+  padding: 0.875rem 1.25rem 1.1rem;
   border-top: 1px solid #f0f4f0;
 }
 
@@ -1228,11 +1250,12 @@ function canDonate(item) {
   margin: 0 1.25rem;
   padding: 10px 14px;
   background: #f0faf0;
-  border: 1px solid #c6e8c5;
-  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
   font-size: 0.83rem;
-  color: #2a4a2a;
+  color: #166534;
   margin-top: 0.75rem;
+  line-height: 1.5;
 }
 
 /* ── Form Elements ── */
@@ -1249,38 +1272,45 @@ function canDonate(item) {
 label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #3a4a3a;
+  color: #374151;
+  letter-spacing: -0.01em;
 }
 .required { color: #ef4444; }
-.optional { font-size: 0.72rem; font-weight: 400; color: #9aaa9a; }
+.optional { font-size: 0.72rem; font-weight: 400; color: #9ca3af; }
 
 .form-input {
   padding: 9px 12px;
-  border: 1.5px solid #e8ede8;
+  border: 1.5px solid #e5e7eb;
   border-radius: 9px;
   font-size: 0.85rem;
   font-family: inherit;
-  color: #1a1a1a;
-  background: #fff;
+  color: #111827;
+  background: #f9fafb;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 150ms, box-shadow 150ms, background 150ms;
   resize: vertical;
 }
-.form-input:focus { border-color: #2da12b; box-shadow: 0 0 0 3px rgba(45,161,43,0.1); }
+.form-input:hover { border-color: #d1d5db; }
+.form-input:focus {
+  border-color: #2da12b;
+  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
+  background: #fff;
+}
 
 /* ── Radio Group for Storage Location ── */
 .radio-group {
   display: flex;
   gap: 1.25rem;
   margin-top: 5px;
+  flex-wrap: wrap;
 }
 .radio-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 500;
-  color: #1a1a1a;
+  color: #374151;
   cursor: pointer;
 }
 .radio-label input[type="radio"] {
@@ -1296,42 +1326,16 @@ label {
   padding: 9px 13px;
   background: #fef2f2;
   border: 1px solid #fecaca;
-  border-radius: 8px;
-  font-size: 0.82rem;
+  border-radius: 9px;
+  font-size: 0.81rem;
   color: #b91c1c;
   font-weight: 600;
 }
 
-/* ── Toast Notification ── */
-.toast {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 11px 22px;
-  border-radius: 99px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  font-family: inherit;
-  z-index: 2000;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.15);
-  white-space: nowrap;
-  pointer-events: none;
-}
-.toast.success { background: #2da12b; color: #fff; }
-.toast.info    { background: #3b82f6; color: #fff; }
-.toast.error   { background: #ef4444; color: #fff; }
-
 /* ── Vue Transition: Modal Fade ── */
-.fade-enter-active { transition: opacity 0.2s ease; }
-.fade-leave-active { transition: opacity 0.15s ease; }
+.fade-enter-active { transition: opacity 200ms ease; }
+.fade-leave-active { transition: opacity 150ms ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-
-/* ── Vue Transition: Toast Slide Up ── */
-.slide-up-enter-active { transition: opacity 0.25s ease, transform 0.25s ease; }
-.slide-up-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
-.slide-up-enter-from   { opacity: 0; transform: translateX(-50%) translateY(16px); }
-.slide-up-leave-to     { opacity: 0; transform: translateX(-50%) translateY(16px); }
 
 /* ── MOBILE RESPONSIVE ── */
 @media (max-width: 860px) {
@@ -1339,13 +1343,14 @@ label {
   .page-header h1 { font-size: 1.2rem; }
   .cards-row { grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
   .food-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .controls-bar { padding: 0.75rem; gap: 0.625rem; }
 }
 
 @media (max-width: 600px) {
   .cards-row { grid-template-columns: 1fr; }
   .food-grid { grid-template-columns: 1fr; }
   .inv-actions { gap: 0.3rem; }
-  .btn-action { padding: 5px 7px; font-size: 0.68rem; }
+  .btn-action { padding: 5px 7px; font-size: 0.67rem; }
   .form-row { grid-template-columns: 1fr; }
 }
 </style>
