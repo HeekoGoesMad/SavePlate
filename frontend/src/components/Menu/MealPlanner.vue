@@ -3,11 +3,16 @@ import { ref, computed, onMounted } from 'vue'
 import AppLayout        from '@/components/Layout/AppLayout.vue'
 import { useToast }        from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
+import { useMealPlanner }   from '@/composables/useMealPlanner'
 
 const emit = defineEmits(['navigate'])
 
 const { showToast } = useToast()
 const { addNotification, unreadCount } = useNotifications()
+const {
+  getExpiringSuggestions,
+  urgencyColor,
+} = useMealPlanner()
 
 // ── Week navigation ──
 const weekOffset    = ref(0)
@@ -45,7 +50,6 @@ const initialPlan = JSON.stringify({
 const mealPlan = ref(JSON.parse(initialPlan))
 
 const confirmedSnapshot = ref(initialPlan)
-const confirmToast      = ref(false)
 
 // True whenever mealPlan diverges from the last-confirmed snapshot
 const hasChanges = computed(() => JSON.stringify(mealPlan.value) !== confirmedSnapshot.value)
@@ -64,12 +68,6 @@ const inventory = ref([
   { id: 6, name: 'Brown Rice',    qty: '500g',  daysLeft: 7, category: 'Grains',  isReserved: false },
   { id: 7, name: 'Cheddar',       qty: '150g',  daysLeft: 9, category: 'Dairy',   isReserved: false },
 ])
-
-function urgencyColor(days) {
-  if (days <= 2) return { color: '#ef4444', bg: '#fef2f2' }
-  if (days <= 4) return { color: '#f59e0b', bg: '#fffbeb' }
-  return { color: '#22c55e', bg: '#f0fdf4' }
-}
 
 // ── Add meal modal ──
 const modalOpen  = ref(false)
@@ -113,7 +111,7 @@ function addMeal() {
     name,
     ingredient: selectedIngredients.value.join(', ') || '—',
   })
-  showToast(`“${name}” added to ${modalSlot.value}`, 'success', '📅')
+  showToast(`"${name}" added to ${modalSlot.value}`, 'success')
   closeModal()
 }
 
@@ -121,7 +119,7 @@ function addRecipe(rec) {
   const key = `${modalDay.value}-${modalSlot.value}`
   if (!mealPlan.value[key]) mealPlan.value[key] = []
   mealPlan.value[key].push({ name: rec.name, ingredient: rec.uses.join(', ') })
-  showToast(`“${rec.name}” added to ${modalSlot.value}`, 'meal', '🍳')
+  showToast(`"${rec.name}" added to ${modalSlot.value}`, 'meal')
   closeModal()
 }
 
@@ -136,7 +134,7 @@ function addInventoryToDay(item) {
   const key = `${today.iso}-${emptySlot}`
   if (!mealPlan.value[key]) mealPlan.value[key] = []
   mealPlan.value[key].push({ name: `Meal with ${item.name}`, ingredient: item.name })
-  showToast(`${item.name} quick-added to today’s ${emptySlot}`, 'success', '➕')
+  showToast(`${item.name} quick-added to today’s ${emptySlot}`, 'success')
 }
 
 function removeMeal(dayIso, slot, idx) {
@@ -144,7 +142,7 @@ function removeMeal(dayIso, slot, idx) {
   if (mealPlan.value[key]) {
     const removed = mealPlan.value[key][idx]
     mealPlan.value[key].splice(idx, 1)
-    showToast(`Removed “${removed?.name ?? 'meal'}” from ${slot}`, 'warning', '🗑️')
+    showToast(`Removed "${removed?.name ?? 'meal'}" from ${slot}`, 'warning')
   }
 }
 
@@ -179,6 +177,31 @@ function confirmPlan() {
   const reservedMsg = reservedCount > 0 ? ` ${reservedCount} ingredient(s) reserved.` : ''
   showToast(`Meal plan confirmed!  ${reservedMsg.trim()}`, 'success', '✅')
 }
+
+// ── US-M4: Proactive expiry suggestion (once per session) ──
+onMounted(() => {
+  const SESSION_KEY = 'saveplate_expiry_suggestions_shown'
+  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY)) return
+
+  const expiring = getExpiringSuggestions(inventory.value, mealPlan.value, 2)
+  if (expiring.length > 0) {
+    expiring.forEach(item => {
+      addNotification(
+        'inventory',
+        `${item.name} expires in ${item.daysLeft} day(s). Add it to your meal plan to avoid waste!`,
+        'meal-planner'
+      )
+    })
+    showToast(
+      `${expiring.length} item(s) expiring soon — check your notifications.`,
+      'warning'
+    )
+  }
+
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(SESSION_KEY, 'true')
+  }
+})
 </script>
 
 <template>
