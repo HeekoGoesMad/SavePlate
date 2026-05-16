@@ -61,6 +61,7 @@ export function computeDaysLeft(expiryDateStr) {
  *   @param {string} filters.filterCategory - exact category label or '' for all
  *   @param {string} filters.filterExpiry   - max daysLeft as string ('1'|'3'|'7') or ''
  *   @param {string} filters.filterStorage  - 'Fridge'|'Freezer'|'Pantry' or ''
+ *   @param {string} filters.filterSource   - 'own'|'donation' or '' for all (FR-3.2)
  *   @param {string} filters.sortBy         - 'expiry' | 'name'
  * @returns {Array} filtered (and sorted) subset of items
  */
@@ -70,6 +71,7 @@ export function filterItems(items, filters = {}) {
     filterCategory = '',
     filterExpiry   = '',
     filterStorage  = '',
+    filterSource   = '',
     sortBy         = 'expiry',
   } = filters
 
@@ -83,8 +85,9 @@ export function filterItems(items, filters = {}) {
     const matchCat     = !filterCategory || item.category === filterCategory
     const matchExpiry  = !filterExpiry   || item.daysLeft <= parseInt(filterExpiry)
     const matchStorage = !filterStorage  || item.storageType === filterStorage
+    const matchSource  = !filterSource   || item.source === filterSource
 
-    return matchText && matchCat && matchExpiry && matchStorage
+    return matchText && matchCat && matchExpiry && matchStorage && matchSource
   })
 
   if (sortBy === 'expiry') result = [...result].sort((a, b) => a.daysLeft - b.daysLeft)
@@ -140,12 +143,18 @@ export function addToMealPlan(mealPlan, item) {
 
 /**
  * Marks a donation item as claimed by currentUser.
+ * Guards against self-claiming: if the item's donorName matches
+ * the currentUser, the claim is refused and false is returned.
  * Mutates the item inside allItems in-place.
- * Returns true if the item was found, false otherwise.
+ * Returns true if the item was found and claimed, false otherwise.
  */
 export function submitClaim(allItems, item, currentUser) {
   const idx = allItems.findIndex(i => i.id === item.id)
   if (idx === -1) return false
+
+  // Prevent the original donor from claiming their own item
+  if (allItems[idx].donorName === currentUser) return false
+
   allItems[idx] = {
     ...allItems[idx],
     status:    'reserved',
@@ -167,6 +176,46 @@ export function cancelClaim(allItems, item) {
     claimedBy:       undefined,
     preferredPickup: undefined,
     claimNote:       undefined,
+  }
+  return true
+}
+
+// ---------------------------------------------------------------------------
+// FR-3.3 — Convert to Donation / Cancel Donation
+// ---------------------------------------------------------------------------
+
+/**
+ * Converts an 'own' inventory item into a donation listing.
+ * Sets source to 'donation' and marks convertedFromOwn: true for traceability.
+ * Returns true if the item was found, false otherwise.
+ */
+export function convertToDonation(allItems, item) {
+  const idx = allItems.findIndex(i => i.id === item.id)
+  if (idx === -1) return false
+  allItems[idx] = {
+    ...allItems[idx],
+    source: 'donation',
+    convertedFromOwn: true,
+  }
+  return true
+}
+
+/**
+ * Cancels a donation and returns the item to the donor's inventory.
+ * Only allowed if the item is still 'available' (not yet claimed).
+ * Returns true if successful, false otherwise.
+ */
+export function cancelDonation(allItems, item) {
+  const idx = allItems.findIndex(i => i.id === item.id)
+  if (idx === -1) return false
+
+  // Cannot cancel if someone already claimed the item
+  if (allItems[idx].status !== 'available') return false
+
+  allItems[idx] = {
+    ...allItems[idx],
+    source: 'own',
+    convertedFromOwn: undefined,
   }
   return true
 }

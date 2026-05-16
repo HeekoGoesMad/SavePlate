@@ -16,6 +16,10 @@ app.get('/api', (req, res) => {
   res.json({ message: 'Welcome to the SavePlate API!' });
 });
 
+// Auth Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+
+
 // Health-check route (useful for testing the DB connection)
 app.get('/api/health', (req, res) => {
   res.json({

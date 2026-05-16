@@ -5,8 +5,6 @@ import { useToast }        from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
 import { useMealPlanner }   from '@/composables/useMealPlanner'
 
-const emit = defineEmits(['navigate'])
-
 const { showToast } = useToast()
 const { addNotification, unreadCount } = useNotifications()
 const {
@@ -205,7 +203,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <AppLayout current-page="meal-planner" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
 
     <div class="planner-page">
 
