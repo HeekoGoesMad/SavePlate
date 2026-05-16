@@ -205,7 +205,7 @@ function convertToDonation(item) {
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, source: 'donation', convertedFromOwn: true }
   }
-  showToast(`"${item.name}" is now listed as a donation 🤝`, 'success', '🎁')
+  showToast(`"${item.name}" is now listed as a donation`, 'success')
   addNotification('donation', `You converted "${item.name}" into a donation listing.`, 'browse')
 }
 
@@ -221,7 +221,7 @@ function cancelDonation(item) {
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, source: 'own', convertedFromOwn: undefined }
   }
-  showToast(`"${item.name}" returned to your inventory 📦`, 'success', '↩️')
+  showToast(`"${item.name}" returned to your inventory `, 'success')
   addNotification('inventory', `You returned "${item.name}" to your inventory.`, 'browse')
 }
 
@@ -241,7 +241,7 @@ function cancelDonation(item) {
 
       <!-- ── Filter Panel (FR-3.2) ── -->
       <div class="filter-panel">
-        <div class="filter-title">🔎 Search &amp; Filter</div>
+        <div class="filter-title">Search &amp; Filter</div>
         <div class="filter-row">
           <!-- Text search -->
           <div class="search-wrap">

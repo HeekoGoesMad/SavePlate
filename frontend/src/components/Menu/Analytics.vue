@@ -44,10 +44,6 @@ const userName = ref('Adrienne Kayana')
             <option value="30d">Last 30 Days</option>
             <option value="all">All Time</option>
           </select>
-
-          <!-- Dev toggle for Empty State -->
-          <button v-if="hasData" @click="clearData" class="dev-btn" title="Simulate Empty Data">👁️</button>
-          <button v-else @click="restoreData" class="dev-btn" title="Restore Data">🔄</button>
         </div>
       </div>
 
@@ -88,7 +84,7 @@ const userName = ref('Adrienne Kayana')
           <!-- Chart 1: Donut -->
           <div class="panel">
             <div class="panel-head">
-              <h2>📊 Food Items Distribution</h2>
+              <h2>Food Items Distribution</h2>
             </div>
             <div class="chart-content">
               <div class="donut-wrap">
@@ -106,7 +102,7 @@ const userName = ref('Adrienne Kayana')
           <!-- Chart 2: Activity (FR-4.1) -->
           <div class="panel">
             <div class="panel-head">
-              <h2>📈 Activity Over Time</h2>
+              <h2>Activity Over Time</h2>
             </div>
             <div class="chart-content">
               <div class="bar-chart">
@@ -126,7 +122,7 @@ const userName = ref('Adrienne Kayana')
           <!-- Environment Impact -->
           <div class="panel impact-panel">
             <div class="panel-head">
-              <h2>🌍 Environment Impact</h2>
+              <h2>Environment Impact</h2>
             </div>
             <div class="impact-content">
               <div class="impact-stat-item" v-for="(stat, idx) in impactStats" :key="idx">
@@ -142,7 +138,7 @@ const userName = ref('Adrienne Kayana')
           <!-- Badges (FR-4.4) -->
           <div class="panel badges-panel">
             <div class="panel-head">
-              <h2>🏆 Milestones & Badges</h2>
+              <h2>Milestones & Badges</h2>
             </div>
             <div class="badges-content">
               <div v-for="badge in badges" :key="badge.id" class="badge-item" :class="{ 'achieved': badge.achieved }">
