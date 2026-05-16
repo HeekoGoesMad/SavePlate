@@ -1,53 +1,127 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
+import { authService } from '../services/authService'
+
+const API_URL = 'http://localhost:3000/api/notifications'
 
 // ── Module-level singleton — shared across all components ──
-const notifications = ref([
-  { id: 1,  type: 'inventory', message: 'Fresh Milk expires tomorrow. Use it or add to a meal.',               time: '2 hours ago',  isRead: false, link: 'inventory'    },
-  { id: 2,  type: 'donation',  message: 'Your bread donation was claimed by another user.',                    time: '5 hours ago',  isRead: false, link: 'browse'       },
-  { id: 3,  type: 'meal',      message: "Reminder: You haven't planned lunch for Wednesday yet.",              time: 'Yesterday',    isRead: false, link: 'meal-planner' },
-  { id: 4,  type: 'account',   message: 'New login detected from Chrome on Windows at 10:42 PM.',             time: 'Yesterday',    isRead: false, link: 'settings'     },
-  { id: 5,  type: 'inventory', message: 'Spinach is expiring in 2 days. Consider using it soon.',             time: '2 days ago',   isRead: false, link: 'inventory'    },
-  { id: 6,  type: 'meal',      message: 'Your meal plan for this week has been confirmed.',                    time: '2 days ago',   isRead: true,  link: 'meal-planner' },
-  { id: 7,  type: 'donation',  message: 'A new donation listing near you: 2kg brown rice.',                   time: '3 days ago',   isRead: true,  link: 'browse'       },
-  { id: 8,  type: 'inventory', message: 'Greek Yogurt expires in 3 days. Plan a recipe?',                     time: '3 days ago',   isRead: true,  link: 'inventory'    },
-  { id: 9,  type: 'account',   message: 'Your password was successfully changed.',                             time: '4 days ago',   isRead: true,  link: 'settings'     },
-  { id: 10, type: 'meal',      message: "Meal reminder: Use your near-expiry tomatoes in tonight's dinner.",  time: '4 days ago',   isRead: true,  link: 'meal-planner' },
-  { id: 11, type: 'donation',  message: 'Donation claim successful — pick up by Saturday.',                   time: '5 days ago',   isRead: true,  link: 'browse'       },
-  { id: 12, type: 'inventory', message: '3 items in your inventory have expired and should be removed.',      time: '6 days ago',   isRead: true,  link: 'inventory'    },
-])
+const notifications = ref([])
+const isLoading = ref(false)
 
-let nextNotifId = 13
-
+import { computed } from 'vue'
 const unreadCount = computed(() => notifications.value.filter(n => !n.isRead).length)
 
 export function useNotifications() {
   /**
-   * Add a new notification to the top of the list (most recent first).
-   * @param {string} type    - 'inventory' | 'donation' | 'meal' | 'account'
-   * @param {string} message
-   * @param {string} [link]  - page id to navigate to when clicked
+   * Fetch all notifications from the backend
    */
-  function addNotification(type, message, link = 'notifications') {
-    notifications.value.unshift({
-      id:      nextNotifId++,
+  async function fetchNotifications() {
+    if (!authService.isLoggedIn.value) return
+    isLoading.value = true
+    try {
+      const response = await fetch(API_URL, {
+        headers: authService.authHeaders(),
+      })
+      if (!response.ok) throw new Error('Failed to fetch notifications')
+      const data = await response.json()
+      notifications.value = data.map(n => ({
+        ...n,
+        id: n._id,
+        time: formatTime(n.createdAt),
+      }))
+    } catch (error) {
+      console.error('fetchNotifications error:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Add a new notification (calls API)
+   */
+  async function addNotification(type, message, link = 'notifications') {
+    const numericIds = notifications.value
+      .map(n => Number(n.id))
+      .filter(Number.isFinite)
+    const tempId = numericIds.length ? Math.max(...numericIds) + 1 : Date.now()
+    const optimistic = {
+      id: tempId,
+      _id: tempId,
       type,
       message,
-      time:    'Just now',
-      isRead:  false,
       link,
-    })
+      isRead: false,
+      time: 'Just now',
+    }
+    notifications.value.unshift(optimistic)
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: authService.authHeaders(),
+        body: JSON.stringify({ type, message, link }),
+      })
+      if (!response.ok) throw new Error('Failed to create notification')
+      const created = await response.json()
+      const idx = notifications.value.findIndex(n => n.id === tempId)
+      if (idx !== -1) notifications.value[idx] = {
+        ...created,
+        id: created._id,
+        time: 'Just now',
+      }
+    } catch (error) {
+      console.error('addNotification error:', error)
+    }
   }
 
   /** Mark a single notification as read by id */
-  function markRead(id) {
+  async function markRead(id) {
     const n = notifications.value.find(n => n.id === id)
-    if (n) n.isRead = true
+    if (n && !n.isRead) {
+      n.isRead = true // Optimistic
+      try {
+        await fetch(`${API_URL}/${id}/read`, {
+          method: 'PATCH',
+          headers: authService.authHeaders(),
+        })
+      } catch (error) {
+        n.isRead = false // Rollback
+        console.error('markRead error:', error)
+      }
+    }
   }
 
   /** Mark all notifications as read */
-  function markAllRead() {
-    notifications.value.forEach(n => { n.isRead = true })
+  async function markAllRead() {
+    const prev = notifications.value.map(n => ({ ...n }))
+    notifications.value.forEach(n => { n.isRead = true }) // Optimistic
+    try {
+      await fetch(`${API_URL}/read-all`, {
+        method: 'PATCH',
+        headers: authService.authHeaders(),
+      })
+    } catch (error) {
+      notifications.value = prev // Rollback
+      console.error('markAllRead error:', error)
+    }
   }
 
-  return { notifications, unreadCount, addNotification, markRead, markAllRead }
+  return { notifications, unreadCount, isLoading, fetchNotifications, addNotification, markRead, markAllRead }
+}
+
+// ── Helper: relative time string ──
+function formatTime(isoString) {
+  if (!isoString) return ''
+  const now = new Date()
+  const date = new Date(isoString)
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

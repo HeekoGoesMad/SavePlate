@@ -1,135 +1,111 @@
 import { ref, computed } from 'vue'
+import { authService } from './authService'
+
+const API_URL = 'http://localhost:3000/api/analytics'
 
 // --- State ---
-export const timePeriod = ref('30d') // '7d', '30d', 'all'
+export const timePeriod = ref('30d')
 export const selectedCategory = ref('All')
-
-// Mock raw data
-const mockRawData = ref({
-  totalSaved: 1240,
-  donations: 85,
-  wasteReduced: 45, // kg
-  badges: [
-    { id: 1, title: '10 Items Saved', current: 10, target: 10, achieved: true, icon: '🌟' },
-    { id: 2, title: '5 Donations', current: 5, target: 5, achieved: true, icon: '🤝' },
-    { id: 3, title: '50 Items Saved', current: 32, target: 50, achieved: false, icon: '🥑' },
-  ],
-  monthlyData: [
-    { month: 'Jan', usage: 40, donations: 5 },
-    { month: 'Feb', usage: 50, donations: 8 },
-    { month: 'Mar', usage: 45, donations: 12 },
-    { month: 'Apr', usage: 60, donations: 15 },
-    { month: 'May', usage: 55, donations: 20 },
-    { month: 'Jun', usage: 70, donations: 25 },
-  ],
-  lastPeriodStats: {
-    totalSaved: 1100, // For comparison
-    donations: 70
-  }
-})
-
-// Feature flag / toggle to demonstrate empty state
+export const isLoading = ref(false)
 export const showEmptyState = ref(false)
 
-// --- Computed Properties ---
+// Raw data from the backend
+const rawData = ref(null)
+
+export async function fetchAnalytics() {
+  if (!authService.isLoggedIn.value) return
+  isLoading.value = true
+  try {
+    const response = await fetch(API_URL, {
+      headers: authService.authHeaders(),
+    })
+    if (!response.ok) throw new Error('Failed to fetch analytics')
+    rawData.value = await response.json()
+    showEmptyState.value = false
+  } catch (error) {
+    console.error('fetchAnalytics error:', error)
+    rawData.value = null
+  } finally {
+    isLoading.value = false
+  }
+}
 
 export const hasData = computed(() => {
-  return !showEmptyState.value && mockRawData.value.totalSaved > 0
+  return !showEmptyState.value && rawData.value && rawData.value.totalItems > 0
 })
 
 export const filteredStats = computed(() => {
-  // Simulate filtering logic based on selectedCategory and timePeriod
-  let multiplier = 1
-  if (timePeriod.value === '7d') multiplier = 0.25
-  if (timePeriod.value === '30d') multiplier = 1
-  if (timePeriod.value === 'all') multiplier = 5
-  
-  if (selectedCategory.value !== 'All') {
-      multiplier *= 0.4
-  }
-
+  if (!rawData.value) return { totalSaved: 0, donations: 0, wasteReduced: '0' }
   return {
-    totalSaved: Math.round(mockRawData.value.totalSaved * multiplier),
-    donations: Math.round(mockRawData.value.donations * multiplier),
-    wasteReduced: (mockRawData.value.wasteReduced * multiplier).toFixed(1),
+    totalSaved: rawData.value.usedItems || 0,
+    donations: rawData.value.donationsMade || 0,
+    wasteReduced: rawData.value.wasteReduced || '0',
   }
 })
 
-// FR-4.3 Period comparison
 export const comparisons = computed(() => {
-  if (timePeriod.value === 'all') return { saved: null, donations: null }
-  
-  // Simulated % change based on selected period
-  let savedVal = timePeriod.value === '7d' ? 5 : 12;
-  let donVal = timePeriod.value === '7d' ? 2 : 8;
-
   return {
-    saved: { value: savedVal, isPositive: true },
-    donations: { value: donVal, isPositive: true }
+    saved: rawData.value?.usedItems > 0 ? { value: rawData.value.usedItems, isPositive: true } : null,
+    donations: rawData.value?.donationsMade > 0 ? { value: rawData.value.donationsMade, isPositive: true } : null,
   }
 })
 
 export const infoBoxes = computed(() => [
-  { 
-    title: 'Total Saved', 
-    value: filteredStats.value.totalSaved, 
-    icon: '🥑', 
-    bgColor: '#f0faf0', 
-    color: '#2da12b', 
-    desc: 'Items rescued',
-    trend: comparisons.value.saved
+  {
+    title: 'Items Saved',
+    value: filteredStats.value.totalSaved,
+    icon: '🥑',
+    bgColor: '#f0faf0',
+    color: '#2da12b',
+    desc: 'Items rescued from waste',
+    trend: comparisons.value.saved,
   },
-  { 
-    title: 'Donations', 
-    value: filteredStats.value.donations, 
-    icon: '🤝', 
-    bgColor: '#eff6ff', 
-    color: '#3b82f6', 
+  {
+    title: 'Donations',
+    value: filteredStats.value.donations,
+    icon: '🤝',
+    bgColor: '#eff6ff',
+    color: '#3b82f6',
     desc: 'Meals safely donated',
-    trend: comparisons.value.donations
+    trend: comparisons.value.donations,
   },
-  { 
-    title: 'Waste Reduced', 
-    value: filteredStats.value.wasteReduced + 'kg', 
-    icon: '♻️', 
-    bgColor: '#fdf4ff', 
-    color: '#c026d3', 
-    desc: 'Less into landfills' 
+  {
+    title: 'Waste Reduced',
+    value: filteredStats.value.wasteReduced + 'kg',
+    icon: '♻️',
+    bgColor: '#fdf4ff',
+    color: '#c026d3',
+    desc: 'Less into landfills',
   },
 ])
 
-// FR-4.1 Chart data
 export const chartData = computed(() => {
-   // Adjusting chart data to look somewhat reactive to filters
-   let limit = 6
-   if (timePeriod.value === '7d') limit = 2
-   if (timePeriod.value === 'all') limit = 6 // Mocking 6 months max for now
-
-   const data = [...mockRawData.value.monthlyData]
-   
-   // Apply category mock multiplier
-   let multiplier = selectedCategory.value === 'All' ? 1 : 0.6
-   
-   return data.slice(-limit).map(d => ({
-       label: d.month,
-       value: Math.floor(d.usage * multiplier),
-       maxValue: 100 // for bar scaling
-   }))
+  if (!rawData.value?.monthlyUsage) return []
+  const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return rawData.value.monthlyUsage.map(d => ({
+    label: months[d._id] || `M${d._id}`,
+    value: d.count,
+    maxValue: Math.max(10, d.count * 1.5),
+  }))
 })
 
-// FR-4.4 Badges
-export const badges = computed(() => mockRawData.value.badges)
+export const badges = computed(() => {
+  if (!rawData.value) return []
+  const used = rawData.value.usedItems || 0
+  const donated = rawData.value.donationsMade || 0
+  return [
+    { id: 1, title: '10 Items Saved', current: Math.min(used, 10), target: 10, achieved: used >= 10, icon: '🌟' },
+    { id: 2, title: '5 Donations', current: Math.min(donated, 5), target: 5, achieved: donated >= 5, icon: '🤝' },
+    { id: 3, title: '50 Items Saved', current: Math.min(used, 50), target: 50, achieved: used >= 50, icon: '🥑' },
+  ]
+})
 
 export const impactStats = computed(() => {
-  let multiplier = 1
-  if (timePeriod.value === '7d') multiplier = 0.25
-  if (timePeriod.value === 'all') multiplier = 5
-  if (selectedCategory.value !== 'All') multiplier *= 0.4
-
+  if (!rawData.value) return []
   return [
-    { value: Math.round(320 * multiplier) + ' kg', label: 'CO₂ Reduced', icon: '💨', bgColor: '#e0f2fe', color: '#0284c7' },
-    { value: Math.round(1500 * multiplier) + ' L', label: 'Water Saved', icon: '💧', bgColor: '#dcfce7', color: '#16a34a' },
-    { value: '$' + Math.round(450 * multiplier), label: 'Money Saved', icon: '💰', bgColor: '#fef3c7', color: '#d97706' },
+    { value: (rawData.value.co2Saved || 0) + ' kg', label: 'CO₂ Reduced', icon: '💨', bgColor: '#e0f2fe', color: '#0284c7' },
+    { value: (rawData.value.waterSaved || 0) + ' L', label: 'Water Saved', icon: '💧', bgColor: '#dcfce7', color: '#16a34a' },
+    { value: '$' + (rawData.value.moneySaved || 0), label: 'Money Saved', icon: '💰', bgColor: '#fef3c7', color: '#d97706' },
   ]
 })
 

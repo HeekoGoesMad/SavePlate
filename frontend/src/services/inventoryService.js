@@ -1,5 +1,12 @@
 import { ref } from 'vue'
+import { authService } from './authService'
 
+const API_URL = 'http://localhost:3000/api/items'
+
+export const items = ref([])
+export const isLoading = ref(false)
+
+// ── Date helpers ──
 export function getTodayPlusDays(n) {
   const d = new Date()
   d.setDate(d.getDate() + n)
@@ -26,89 +33,116 @@ export function getExpiryStatus(item) {
   return { label: `${days}d left`, color: '#22c55e', bgColor: '#f0fdf4' }
 }
 
-export const items = ref([
-  {
-    id: 1,
-    name: 'Fresh Milk',
-    category: 'Dairy',
-    quantity: 1,
-    unit: 'L',
-    expiryDate: getTodayPlusDays(1),
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: 'Opened on April 18',
-  },
-  {
-    id: 2,
-    name: 'Spinach',
-    category: 'Vegetables',
-    quantity: 200,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(2),
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 3,
-    name: 'Greek Yogurt',
-    category: 'Dairy',
-    quantity: 500,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(4),
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 4,
-    name: 'Canned Tuna',
-    category: 'Canned',
-    quantity: 3,
-    unit: 'pcs',
-    expiryDate: getTodayPlusDays(90),
-    storageLocation: 'Pantry',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 5,
-    name: 'Frozen Peas',
-    category: 'Frozen',
-    quantity: 400,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(30),
-    storageLocation: 'Freezer',
-    status: 'available',
-    notes: '',
-  },
-])
+// ── API calls ──
 
-export function addItem(newItem) {
-  items.value.push({
-    ...newItem,
-    id: Date.now(),
-    status: 'available',
-  })
-}
-
-export function updateItem(updatedItem) {
-  const idx = items.value.findIndex(i => i.id === updatedItem.id)
-  if (idx !== -1) {
-    items.value[idx] = { ...updatedItem }
+export async function fetchItems() {
+  isLoading.value = true
+  try {
+    const response = await fetch(API_URL, {
+      headers: authService.authHeaders(),
+    })
+    if (!response.ok) throw new Error('Failed to fetch items')
+    const data = await response.json()
+    // Normalise _id → id and expiryDate to string
+    items.value = data.map(item => ({
+      ...item,
+      id: item._id,
+      expiryDate: item.expiryDate ? item.expiryDate.split('T')[0] : '',
+    }))
+  } catch (error) {
+    console.error('fetchItems error:', error)
+    throw error
+  } finally {
+    isLoading.value = false
   }
 }
 
-export function deleteItem(id) {
-  items.value = items.value.filter(i => i.id !== id)
+export async function addItem(newItem) {
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: authService.authHeaders(),
+    body: JSON.stringify(newItem),
+  })
+  if (!response.ok) {
+    const data = await response.json()
+    throw new Error(data.message || 'Failed to add item')
+  }
+  const created = await response.json()
+  items.value.push({
+    ...created,
+    id: created._id,
+    expiryDate: created.expiryDate ? created.expiryDate.split('T')[0] : '',
+  })
+  return created
 }
 
-export function markAsUsed(id) {
-  const item = items.value.find(i => i.id === id)
-  if (item) item.status = 'used'
+export async function updateItem(updatedItem) {
+  const itemId = updatedItem.id || updatedItem._id
+  const response = await fetch(`${API_URL}/${itemId}`, {
+    method: 'PUT',
+    headers: authService.authHeaders(),
+    body: JSON.stringify(updatedItem),
+  })
+  if (!response.ok) {
+    const data = await response.json()
+    throw new Error(data.message || 'Failed to update item')
+  }
+  const updated = await response.json()
+  const idx = items.value.findIndex(i => (i.id || i._id) === itemId)
+  if (idx !== -1) {
+    items.value[idx] = {
+      ...updated,
+      id: updated._id,
+      expiryDate: updated.expiryDate ? updated.expiryDate.split('T')[0] : '',
+    }
+  }
+  return updated
 }
 
-export function donateItem(id) {
-  const item = items.value.find(i => i.id === id)
-  if (item) item.status = 'donated'
+export async function deleteItem(id) {
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: 'DELETE',
+    headers: authService.authHeaders(),
+  })
+  if (!response.ok) {
+    const data = await response.json()
+    throw new Error(data.message || 'Failed to delete item')
+  }
+  items.value = items.value.filter(i => (i.id || i._id) !== id)
+}
+
+export async function markAsUsed(id) {
+  const response = await fetch(`${API_URL}/${id}/status`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+    body: JSON.stringify({ status: 'used' }),
+  })
+  if (!response.ok) throw new Error('Failed to update status')
+  const updated = await response.json()
+  const idx = items.value.findIndex(i => (i.id || i._id) === id)
+  if (idx !== -1) {
+    items.value[idx] = {
+      ...updated,
+      id: updated._id,
+      expiryDate: updated.expiryDate ? updated.expiryDate.split('T')[0] : '',
+    }
+  }
+}
+
+export async function donateItem(id) {
+  const response = await fetch(`${API_URL}/${id}/status`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+    body: JSON.stringify({ status: 'donated' }),
+  })
+  if (!response.ok) throw new Error('Failed to update status')
+  const updated = await response.json()
+  const idx = items.value.findIndex(i => (i.id || i._id) === id)
+  if (idx !== -1) {
+    items.value[idx] = {
+      ...updated,
+      id: updated._id,
+      expiryDate: updated.expiryDate ? updated.expiryDate.split('T')[0] : '',
+    }
+  }
 }

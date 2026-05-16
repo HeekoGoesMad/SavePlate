@@ -1,172 +1,83 @@
 ﻿<script setup>
-// ─────────────────────────────────────────────────────────
-// Inventory.vue  –  Use Case 2: Manage Food Inventory
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Inventory.vue  â€“  Use Case 2: Manage Food Inventory
 // Allows users to add, edit, mark as used, donate, and
 // delete food items from their personal household inventory.
-// ─────────────────────────────────────────────────────────
-import { ref, computed } from 'vue'
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import { ref, computed, onMounted } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast }         from '@/composables/useToast'
+import { authService }      from '@/services/authService'
+import {
+  items, isLoading as itemsLoading,
+  fetchItems, addItem as apiAddItem, updateItem as apiUpdateItem,
+  deleteItem as apiDeleteItem, markAsUsed as apiMarkUsed, donateItem as apiDonateItem,
+  getTodayString, daysUntilExpiry, getExpiryStatus,
+} from '@/services/inventoryService'
+import { createDonation } from '@/services/donationService'
 
 const emit = defineEmits(['navigate'])
 
 const { unreadCount }   = useNotifications()
 const { showToast } = useToast()
 
-// ── CONSTANTS ────────────────────────────────────────────
-// Category list (matches DB schema enum)
+// â”€â”€ Fetch items on mount â”€â”€
+onMounted(async () => {
+  try {
+    await fetchItems()
+  } catch {
+    showToast('Failed to load inventory. Please try again.', 'warning')
+  }
+})
+
+// â”€â”€ CONSTANTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CATEGORIES = ['Vegetables', 'Dairy', 'Canned', 'Frozen', 'Bakery', 'Other']
-
-// Storage location options (matches DB schema enum)
 const STORAGE_LOCATIONS = ['Fridge', 'Freezer', 'Pantry']
-
-// Unit options for quantity
 const UNITS = ['pcs', 'g', 'kg', 'ml', 'L']
 
-// ── MOCK INVENTORY DATA ───────────────────────────────────
-// In a real app, this would come from: GET /api/items
-// Each item follows the FoodItem schema from the Data Dictionary
-const items = ref([
-  {
-    id: 1,
-    name: 'Fresh Milk',
-    category: 'Dairy',
-    quantity: 1,
-    unit: 'L',
-    expiryDate: getTodayPlusDays(1),   // expires tomorrow → URGENT
-    storageLocation: 'Fridge',
-    status: 'available',               // available | used | donated | reserved
-    notes: 'Opened on April 18',
-  },
-  {
-    id: 2,
-    name: 'Spinach',
-    category: 'Vegetables',
-    quantity: 200,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(2),   // expires in 2 days → WARNING
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 3,
-    name: 'Greek Yogurt',
-    category: 'Dairy',
-    quantity: 500,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(4),   // expires in 4 days → SAFE
-    storageLocation: 'Fridge',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 4,
-    name: 'Canned Tuna',
-    category: 'Canned',
-    quantity: 3,
-    unit: 'pcs',
-    expiryDate: getTodayPlusDays(90),  // expires in 90 days → SAFE
-    storageLocation: 'Pantry',
-    status: 'available',
-    notes: '',
-  },
-  {
-    id: 5,
-    name: 'Frozen Peas',
-    category: 'Frozen',
-    quantity: 400,
-    unit: 'g',
-    expiryDate: getTodayPlusDays(30),  // expires in 30 days → SAFE
-    storageLocation: 'Freezer',
-    status: 'available',
-    notes: '',
-  },
-])
-
-// ── HELPER: Date Utilities ────────────────────────────────
-// Returns a date string "YYYY-MM-DD" n days from today
-function getTodayPlusDays(n) {
-  const d = new Date()
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
-// Returns today as "YYYY-MM-DD" string (used as min for date picker)
-function getTodayString() {
-  return new Date().toISOString().split('T')[0]
-}
-
-// Returns days remaining until expiry (negative = already expired)
-function daysUntilExpiry(dateStr) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const expiry = new Date(dateStr)
-  return Math.round((expiry - today) / (1000 * 60 * 60 * 24))
-}
-
-// Returns { label, color, bgColor } for the expiry badge
-function getExpiryStatus(item) {
-  if (item.status === 'used') return { label: 'Used', color: '#6b7280', bgColor: '#f3f4f6' }
-  const days = daysUntilExpiry(item.expiryDate)
-  if (days < 0)  return { label: 'Expired',            color: '#dc2626', bgColor: '#fef2f2' }
-  if (days === 0) return { label: 'Expires Today',      color: '#f59e0b', bgColor: '#fffbeb' }
-  if (days <= 3)  return { label: `${days}d left`,      color: '#f59e0b', bgColor: '#fffbeb' }
-  return           { label: `${days}d left`,             color: '#22c55e', bgColor: '#f0fdf4' }
-}
-
-// ── COMPUTED: Summary Info Boxes (Dashboard‐style cards) ──
+// â”€â”€ COMPUTED: Summary Info Boxes â”€â”€
 const summaryCards = computed(() => {
   const active      = items.value.filter(i => i.status === 'available')
   const expiringSoon = active.filter(i => daysUntilExpiry(i.expiryDate) <= 3)
   const usedCount   = items.value.filter(i => i.status === 'used').length
 
   return [
-    { label: 'Total Items',   value: active.length,       unit: 'in inventory', icon: '📦', color: '#3b82f6', bg: '#eff6ff' },
-    { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: '⚠️', color: '#f59e0b', bg: '#fffbeb' },
-    { label: 'Items Used',    value: usedCount,            unit: 'saved from waste', icon: '✅', color: '#22c55e', bg: '#f0fdf4' },
+    { label: 'Total Items',   value: active.length,       unit: 'in inventory', icon: 'ðŸ“¦', color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: 'âš ï¸', color: '#f59e0b', bg: '#fffbeb' },
+    { label: 'Items Used',    value: usedCount,            unit: 'saved from waste', icon: 'âœ…', color: '#22c55e', bg: '#f0fdf4' },
   ]
 })
 
-// ── FILTER / SORT ─────────────────────────────────────────
-const sortOption     = ref('expiryDate')  // 'expiryDate' | 'name' | 'category' | 'dateAdded'
-const filterCategory = ref('All')         // 'All' or a specific category
-const filterStatus   = ref('available')   // 'available' | 'used'
+// â”€â”€ FILTER / SORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const sortOption     = ref('expiryDate')
+const filterCategory = ref('All')
+const filterStatus   = ref('available')
 
-// Only show items matching the selected status (active inventory or used history)
 const filteredItems = computed(() => {
   let list = items.value.filter(i => i.status === filterStatus.value)
 
-  // Filter by category
   if (filterCategory.value !== 'All') {
     list = list.filter(i => i.category === filterCategory.value)
   }
 
-  // Sort
   if (sortOption.value === 'name') {
     list = [...list].sort((a, b) => a.name.localeCompare(b.name))
   } else if (sortOption.value === 'category') {
     list = [...list].sort((a, b) => a.category.localeCompare(b.category))
   } else if (sortOption.value === 'dateAdded') {
-    list = [...list].sort((a, b) => b.id - a.id) // Mock sorting by date added using ID descending
+    list = [...list].sort((a, b) => (b.id || '').localeCompare(a.id || ''))
   } else {
-    // Default: sort by soonest expiry first
     list = [...list].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate))
   }
   return list
 })
 
-// ── ADD FOOD ITEM MODAL ───────────────────────────────────
+// â”€â”€ ADD FOOD ITEM MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const showAddModal = ref(false)
-
-// Form data bound to the "Add Food Item" modal inputs
 const newItem = ref(createEmptyItem())
-
-// Validation error message shown in the modal
 const addError = ref('')
 
-// Creates a fresh empty form object
 function createEmptyItem() {
   return {
     name: '',
@@ -189,55 +100,36 @@ function closeAddModal() {
   showAddModal.value = false
 }
 
-// Validates the form and saves the new item to the list
-// In a real app: POST /api/items, then update local state
-function submitAddItem() {
-  // ── Validation (FR-2.1) ──
-  if (!newItem.value.name.trim()) {
-    addError.value = 'Item name is required.'
-    return
-  }
-  if (!newItem.value.category) {
-    addError.value = 'Please select a category.'
-    return
-  }
-  if (!newItem.value.quantity || newItem.value.quantity <= 0) {
-    addError.value = 'Quantity must be a positive number.'
-    return
-  }
-  if (!newItem.value.expiryDate) {
-    addError.value = 'Expiry date is required.'
-    return
-  }
-  if (newItem.value.expiryDate < getTodayString()) {
-    addError.value = 'Expiry date cannot be in the past.'
-    return
-  }
+async function submitAddItem() {
+  if (!newItem.value.name.trim()) { addError.value = 'Item name is required.'; return }
+  if (!newItem.value.category) { addError.value = 'Please select a category.'; return }
+  if (!newItem.value.quantity || newItem.value.quantity <= 0) { addError.value = 'Quantity must be a positive number.'; return }
+  if (!newItem.value.expiryDate) { addError.value = 'Expiry date is required.'; return }
+  if (newItem.value.expiryDate < getTodayString()) { addError.value = 'Expiry date cannot be in the past.'; return }
 
-  // ── Save (mock: push to local array) ──
-  items.value.push({
-    id: Date.now(),                      // temporary ID; real app uses MongoDB _id
-    name: newItem.value.name.trim(),
-    category: newItem.value.category,
-    quantity: Number(newItem.value.quantity),
-    unit: newItem.value.unit,
-    expiryDate: newItem.value.expiryDate,
-    storageLocation: newItem.value.storageLocation,
-    notes: newItem.value.notes,
-    status: 'available',
-  })
-
-  showToast('Food item added successfully.', 'success')
-  closeAddModal()
+  try {
+    await apiAddItem({
+      name: newItem.value.name.trim(),
+      category: newItem.value.category,
+      quantity: Number(newItem.value.quantity),
+      unit: newItem.value.unit,
+      expiryDate: newItem.value.expiryDate,
+      storageLocation: newItem.value.storageLocation,
+      notes: newItem.value.notes,
+    })
+    showToast('Food item added successfully.', 'success')
+    closeAddModal()
+  } catch (err) {
+    addError.value = err.message || 'Failed to add item.'
+  }
 }
 
-// ── EDIT ITEM MODAL ───────────────────────────────────────
+// â”€â”€ EDIT ITEM MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const showEditModal = ref(false)
-const editItem = ref(null)          // holds a copy of the item being edited
+const editItem = ref(null)
 const editError = ref('')
 
 function openEditModal(item) {
-  // Make a shallow copy so edits don't mutate the original until saved
   editItem.value = { ...item }
   editError.value = ''
   showEditModal.value = true
@@ -248,41 +140,24 @@ function closeEditModal() {
   editItem.value = null
 }
 
-// Applies edits to the item in the items array
-// In a real app: PUT /api/items/:id
-function submitEditItem() {
-  if (!editItem.value.name.trim()) {
-    editError.value = 'Item name is required.'
-    return
-  }
-  if (!editItem.value.expiryDate) {
-    editError.value = 'Expiry date is required.'
-    return
-  }
-  if (editItem.value.expiryDate < getTodayString()) {
-    editError.value = 'Expiry date cannot be in the past.'
-    return
-  }
+async function submitEditItem() {
+  if (!editItem.value.name.trim()) { editError.value = 'Item name is required.'; return }
+  if (!editItem.value.expiryDate) { editError.value = 'Expiry date is required.'; return }
+  if (editItem.value.expiryDate < getTodayString()) { editError.value = 'Expiry date cannot be in the past.'; return }
 
-  // Find the item in the array and replace it with the edited copy
-  const idx = items.value.findIndex(i => i.id === editItem.value.id)
-  if (idx !== -1) {
-    items.value[idx] = { ...editItem.value }
+  try {
+    await apiUpdateItem(editItem.value)
+    showToast('Food item updated successfully.', 'success')
+    closeEditModal()
+  } catch (err) {
+    editError.value = err.message || 'Failed to update item.'
   }
-
-  showToast('Food item updated successfully.', 'success')
-  closeEditModal()
 }
 
-// ── CONFIRM MODAL LOGIC ───────────────────────────────────
+// â”€â”€ CONFIRM MODAL LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const showConfirmModal = ref(false)
 const confirmData = ref({
-  title: '',
-  message: '',
-  confirmText: '',
-  cancelText: 'Cancel',
-  onConfirm: null,
-  isDanger: false
+  title: '', message: '', confirmText: '', cancelText: 'Cancel', onConfirm: null, isDanger: false
 })
 
 function openConfirmModal({ title, message, confirmText, cancelText = 'Cancel', onConfirm, isDanger = false }) {
@@ -296,58 +171,52 @@ function closeConfirmModal() {
 }
 
 function executeConfirm() {
-  if (confirmData.value.onConfirm) {
-    confirmData.value.onConfirm()
-  }
+  if (confirmData.value.onConfirm) confirmData.value.onConfirm()
   closeConfirmModal()
 }
 
-// ── MARK AS USED ──────────────────────────────────────────
-// (FR-2.3) Updates the item's status to 'used'
-// In a real app: PATCH /api/items/:id/status { status: 'used' }
+// â”€â”€ MARK AS USED â”€â”€
 function markAsUsed(item) {
   openConfirmModal({
     title: 'Mark as Used',
     message: `Mark "${item.name}" as fully used? This will update your savings record.`,
     confirmText: 'Mark as Used',
-    onConfirm: () => {
-      item.status = 'used'
-      showToast(`Great job! ${item.name} has been marked as used.`, 'success')
+    onConfirm: async () => {
+      try {
+        await apiMarkUsed(item.id)
+        showToast(`Great job! ${item.name} has been marked as used.`, 'success')
+      } catch { showToast('Failed to mark item as used.', 'warning') }
     }
   })
 }
 
-// ── DELETE ITEM ───────────────────────────────────────────
-// (FR-2.2) Removes the item from the list
-// In a real app: DELETE /api/items/:id
+// â”€â”€ DELETE ITEM â”€â”€
 function deleteItem(item) {
   if (item.status === 'reserved') {
     openConfirmModal({
       title: 'Action Denied',
       message: 'This item is reserved for your meal plan. Please remove it from the plan before deleting.',
-      confirmText: 'OK',
-      cancelText: '',
-      onConfirm: () => {}
+      confirmText: 'OK', cancelText: '', onConfirm: () => {}
     })
     return
   }
-  
+
   openConfirmModal({
     title: 'Delete Item',
     message: `Are you sure you want to remove ${item.name} from your inventory? This cannot be undone.`,
-    confirmText: 'Delete',
-    isDanger: true,
-    onConfirm: () => {
-      items.value = items.value.filter(i => i.id !== item.id)
-      showToast('Item removed from inventory.', 'success')
+    confirmText: 'Delete', isDanger: true,
+    onConfirm: async () => {
+      try {
+        await apiDeleteItem(item.id)
+        showToast('Item removed from inventory.', 'success')
+      } catch { showToast('Failed to delete item.', 'warning') }
     }
   })
 }
 
-// ── DONATE MODAL ──────────────────────────────────────────
-// (FR-2.4) Converts an inventory item into a donation listing
+// â”€â”€ DONATE MODAL â”€â”€
 const showDonateModal = ref(false)
-const donateTarget    = ref(null)     // which item is being donated
+const donateTarget    = ref(null)
 const donateForm      = ref({ location: '', availability: '' })
 const donateError     = ref('')
 
@@ -363,43 +232,41 @@ function closeDonateModal() {
   donateTarget.value    = null
 }
 
-// Converts item to donation and updates its status
-// In a real app: POST /api/donations, then PATCH item status → 'donated'
-function submitDonate() {
-  if (!donateForm.value.location.trim()) {
-    donateError.value = 'Pickup location is required.'
-    return
-  }
-  if (!donateForm.value.availability.trim()) {
-    donateError.value = 'Availability details are required.'
-    return
-  }
+async function submitDonate() {
+  if (!donateForm.value.location.trim()) { donateError.value = 'Pickup location is required.'; return }
+  if (!donateForm.value.availability.trim()) { donateError.value = 'Availability details are required.'; return }
 
-  // Update item status to 'donated' (removes it from active inventory view)
-  donateTarget.value.status = 'donated'
-  showToast('Your item has been listed for donation. Nearby users will be notified.', 'success')
-  closeDonateModal()
+  try {
+    // Create the donation listing on the server
+    await createDonation({
+      name: donateTarget.value.name,
+      qty: `${donateTarget.value.quantity} ${donateTarget.value.unit}`,
+      category: donateTarget.value.category,
+      expiryDate: donateTarget.value.expiryDate,
+      storageType: donateTarget.value.storageLocation || 'Pantry',
+      pickupLocation: donateForm.value.location.trim(),
+      availability: donateForm.value.availability.trim(),
+      notes: donateTarget.value.notes || '',
+    })
+    // Update inventory item status to 'donated'
+    await apiDonateItem(donateTarget.value.id)
+    showToast('Your item has been listed for donation. Nearby users will be notified.', 'success')
+    closeDonateModal()
+  } catch (err) {
+    donateError.value = err.message || 'Failed to create donation listing.'
+  }
 }
 
-// ── CATEGORY ICON HELPER ──────────────────────────────────
-// Returns an emoji icon based on the item's category
+// â”€â”€ CATEGORY ICON HELPER â”€â”€
 function categoryIcon(category) {
   const map = {
-    Vegetables: '🥬',
-    Dairy:      '🥛',
-    Canned:     '🥫',
-    Frozen:     '🧊',
-    Bakery:     '🍞',
-    Fruits:     '🍎',
-    Protein:    '🥚',
-    Grains:     '🍚',
-    Other:      '📦',
+    Vegetables: 'ðŸ¥¬', Dairy: 'ðŸ¥›', Canned: 'ðŸ¥«', Frozen: 'ðŸ§Š',
+    Bakery: 'ðŸž', Fruits: 'ðŸŽ', Protein: 'ðŸ¥š', Grains: 'ðŸš', Other: 'ðŸ“¦',
   }
-  return map[category] ?? '🍽️'
+  return map[category] ?? 'ðŸ½ï¸'
 }
 
-// ── DONATE ELIGIBILITY (UC2 – item nearing expiry) ────────
-// Only items expiring within 7 days can be converted to donation
+// â”€â”€ DONATE ELIGIBILITY â”€â”€
 const DONATE_THRESHOLD_DAYS = 7
 function canDonate(item) {
   return daysUntilExpiry(item.expiryDate) <= DONATE_THRESHOLD_DAYS
@@ -410,7 +277,7 @@ function canDonate(item) {
   <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
     <div class="inventory-page">
 
-      <!-- ══ PAGE HEADER ══════════════════════════════════ -->
+      <!-- â•â• PAGE HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
       <div class="page-header">
         <div class="header-text">
           <h1>Food Inventory</h1>
@@ -422,7 +289,7 @@ function canDonate(item) {
         </button>
       </div>
 
-      <!-- ══ INFO BOXES (Summary Cards) ══════════════════════ -->
+      <!-- â•â• INFO BOXES (Summary Cards) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
       <!-- Match Dashboard summary card style -->
       <div class="cards-row">
         <div
@@ -440,7 +307,7 @@ function canDonate(item) {
         </div>
       </div>
 
-      <!-- ══ FILTER & SORT BAR ════════════════════════════ -->
+      <!-- â•â• FILTER & SORT BAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
       <div class="controls-bar">
         <!-- Filter by Status -->
         <div class="filter-group">
@@ -472,7 +339,7 @@ function canDonate(item) {
         </div>
       </div>
 
-      <!-- ══ INVENTORY LIST ════════════════════════════════ -->
+      <!-- â•â• INVENTORY LIST â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
       <div class="panel-head">
         <h2>Inventory Items</h2>
         <span class="item-count">{{ filteredItems.length }} item(s)</span>
@@ -480,7 +347,7 @@ function canDonate(item) {
 
       <!-- Empty state (NFR-US-4 / FR-4.5) -->
       <div v-if="filteredItems.length === 0" class="empty-state">
-        <div class="empty-icon">🥡</div>
+        <div class="empty-icon">ðŸ¥¡</div>
         <p>No items found. Try adjusting your filters or add a new food item!</p>
         <button class="btn-primary" @click="openAddModal">+ Add Food Item</button>
       </div>
@@ -514,20 +381,20 @@ function canDonate(item) {
 
             <div class="card-meta-list">
               <div class="card-meta-row">
-                <span class="meta-icon">📦</span>
+                <span class="meta-icon">ðŸ“¦</span>
                 <span class="meta-text">{{ item.quantity }} {{ item.unit }}</span>
               </div>
               <div v-if="item.storageLocation" class="card-meta-row">
-                <span class="meta-icon">🗄️</span>
+                <span class="meta-icon">ðŸ—„ï¸</span>
                 <span class="meta-text">{{ item.storageLocation }}</span>
               </div>
               <div class="card-meta-row">
-                <span class="meta-icon">📅</span>
+                <span class="meta-icon">ðŸ“…</span>
                 <span class="meta-text" v-if="item.status === 'used'">Status: Consumed</span>
                 <span class="meta-text" v-else>Expires {{ item.expiryDate }}</span>
               </div>
               <div v-if="item.notes" class="card-meta-row">
-                <span class="meta-icon">📝</span>
+                <span class="meta-icon">ðŸ“</span>
                 <span class="meta-text">{{ item.notes }}</span>
               </div>
             </div>
@@ -549,7 +416,7 @@ function canDonate(item) {
               <button class="btn-action delete" @click="deleteItem(item)" title="Delete">Delete</button>
             </div>
             <p v-if="item.status !== 'used' && !canDonate(item)" class="donate-hint">
-              Donate unlocks when ≤ 7 days to expiry
+              Donate unlocks when â‰¤ 7 days to expiry
             </p>
           </div>
         </div>
@@ -558,23 +425,23 @@ function canDonate(item) {
     </div><!-- end .inventory-page -->
 
 
-    <!-- ══════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          MODAL: Add Food Item (FR-2.1)
          Fields: Name, Category, Quantity, Unit,
                  Expiry Date, Storage Location, Notes
-    ═══════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
           <div class="modal" role="dialog" aria-labelledby="modal-add-title">
 
             <div class="modal-header">
-              <h3 id="modal-add-title">➕ Add Food Item</h3>
-              <button class="modal-close" @click="closeAddModal" aria-label="Close">✕</button>
+              <h3 id="modal-add-title">âž• Add Food Item</h3>
+              <button class="modal-close" @click="closeAddModal" aria-label="Close">âœ•</button>
             </div>
 
             <!-- Validation Error Banner -->
-            <div v-if="addError" class="error-msg">⛔ {{ addError }}</div>
+            <div v-if="addError" class="error-msg">â›” {{ addError }}</div>
 
             <div class="modal-body">
               <!-- Food Name (required) -->
@@ -666,20 +533,20 @@ function canDonate(item) {
     </Teleport>
 
 
-    <!-- ══════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          MODAL: Edit Food Item (FR-2.2)
-    ═══════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showEditModal && editItem" class="modal-overlay" @click.self="closeEditModal">
           <div class="modal" role="dialog" aria-labelledby="modal-edit-title">
 
             <div class="modal-header">
-              <h3 id="modal-edit-title">✏️ Edit Food Item</h3>
-              <button class="modal-close" @click="closeEditModal" aria-label="Close">✕</button>
+              <h3 id="modal-edit-title">âœï¸ Edit Food Item</h3>
+              <button class="modal-close" @click="closeEditModal" aria-label="Close">âœ•</button>
             </div>
 
-            <div v-if="editError" class="error-msg">⛔ {{ editError }}</div>
+            <div v-if="editError" class="error-msg">â›” {{ editError }}</div>
 
             <div class="modal-body">
               <div class="form-group">
@@ -744,28 +611,28 @@ function canDonate(item) {
     </Teleport>
 
 
-    <!-- ══════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          MODAL: Donate Item (FR-2.4)
          Converts an inventory item to a donation listing.
          Fields: Pickup Location, Availability
-    ═══════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showDonateModal && donateTarget" class="modal-overlay" @click.self="closeDonateModal">
           <div class="modal" role="dialog" aria-labelledby="modal-donate-title">
 
             <div class="modal-header">
-              <h3 id="modal-donate-title">🤝 Donate Food Item</h3>
-              <button class="modal-close" @click="closeDonateModal" aria-label="Close">✕</button>
+              <h3 id="modal-donate-title">ðŸ¤ Donate Food Item</h3>
+              <button class="modal-close" @click="closeDonateModal" aria-label="Close">âœ•</button>
             </div>
 
             <!-- Preview of which item is being donated -->
             <div class="donate-preview">
               Donating: <strong>{{ donateTarget.name }}</strong>
-              ({{ donateTarget.quantity }}{{ donateTarget.unit }} · Expires {{ donateTarget.expiryDate }})
+              ({{ donateTarget.quantity }}{{ donateTarget.unit }} Â· Expires {{ donateTarget.expiryDate }})
             </div>
 
-            <div v-if="donateError" class="error-msg">⛔ {{ donateError }}</div>
+            <div v-if="donateError" class="error-msg">â›” {{ donateError }}</div>
 
             <div class="modal-body">
               <!-- Pickup Location (required) -->
@@ -787,7 +654,7 @@ function canDonate(item) {
                   id="donate-avail"
                   v-model="donateForm.availability"
                   type="text"
-                  placeholder="e.g. Weekdays 3PM – 7PM"
+                  placeholder="e.g. Weekdays 3PM â€“ 7PM"
                   class="form-input"
                 />
               </div>
@@ -795,7 +662,7 @@ function canDonate(item) {
 
             <div class="modal-footer">
               <button class="btn-secondary" @click="closeDonateModal">Cancel</button>
-              <button class="btn-donate" @click="submitDonate" id="btn-submit-donate">🤝 Post Donation</button>
+              <button class="btn-donate" @click="submitDonate" id="btn-submit-donate">ðŸ¤ Post Donation</button>
             </div>
           </div>
         </div>
@@ -803,16 +670,16 @@ function canDonate(item) {
     </Teleport>
 
 
-    <!-- ══════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          MODAL: Confirmation (Generic)
-    ═══════════════════════════════════════════════════ -->
+    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal">
           <div class="modal" role="dialog" aria-labelledby="modal-confirm-title">
             <div class="modal-header">
               <h3 id="modal-confirm-title">{{ confirmData.title }}</h3>
-              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">✕</button>
+              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">âœ•</button>
             </div>
             <div class="modal-body">
               <p style="font-size: 0.9rem; color: #3a4a3a; line-height: 1.5; margin: 0;">{{ confirmData.message }}</p>
@@ -835,7 +702,7 @@ function canDonate(item) {
 </template>
 
 <style scoped>
-/* ── Page wrapper ── */
+/* â”€â”€ Page wrapper â”€â”€ */
 .inventory-page {
   padding: 1.75rem 1.5rem;
   max-width: 1100px;
@@ -846,7 +713,7 @@ function canDonate(item) {
   font-family: 'Inter', sans-serif;
 }
 
-/* ── Page Header ── */
+/* â”€â”€ Page Header â”€â”€ */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -866,7 +733,7 @@ function canDonate(item) {
 }
 .sub { font-size: 0.78rem; color: #9ca3af; font-weight: 500; }
 
-/* ── Summary Cards Row ── */
+/* â”€â”€ Summary Cards Row â”€â”€ */
 .cards-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -892,7 +759,7 @@ function canDonate(item) {
 .card-label { font-size: 0.73rem; font-weight: 700; color: #374151; margin-top: 3px; letter-spacing: -0.01em; }
 .card-unit  { font-size: 0.63rem; color: #9ca3af; font-weight: 500; }
 
-/* ── Controls Bar ── */
+/* â”€â”€ Controls Bar â”€â”€ */
 .controls-bar {
   display: flex;
   gap: 0.875rem;
@@ -933,7 +800,7 @@ function canDonate(item) {
   background: #fff;
 }
 
-/* ── Panel Head ── */
+/* â”€â”€ Panel Head â”€â”€ */
 .panel-head {
   display: flex;
   align-items: center;
@@ -955,7 +822,7 @@ function canDonate(item) {
   font-weight: 500;
 }
 
-/* ── Empty State ── */
+/* â”€â”€ Empty State â”€â”€ */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -970,7 +837,7 @@ function canDonate(item) {
 .empty-icon { font-size: 2.75rem; }
 .empty-state p { font-size: 0.88rem; color: #6b7280; line-height: 1.5; }
 
-/* ── Food cards grid ── */
+/* â”€â”€ Food cards grid â”€â”€ */
 .food-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1101,7 +968,7 @@ function canDonate(item) {
 .btn-action.used   { background: #f0fdf4; color: #16a34a; }
 .btn-action.delete { background: #fef2f2; color: #ef4444; }
 
-/* ── Primary & Secondary Buttons ── */
+/* â”€â”€ Primary & Secondary Buttons â”€â”€ */
 .btn-primary {
   background: linear-gradient(135deg, #2da12b, #22c55e);
   color: #fff;
@@ -1172,7 +1039,7 @@ function canDonate(item) {
 .btn-danger:active { transform: scale(0.97); }
 .btn-danger:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
 
-/* ── Modal Overlay ── */
+/* â”€â”€ Modal Overlay â”€â”€ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1186,7 +1053,7 @@ function canDonate(item) {
   padding: 1rem;
 }
 
-/* ── Modal Box ── */
+/* â”€â”€ Modal Box â”€â”€ */
 .modal {
   background: #fff;
   border-radius: 20px;
@@ -1245,7 +1112,7 @@ function canDonate(item) {
   border-top: 1px solid #f0f4f0;
 }
 
-/* ── Donate Preview Box ── */
+/* â”€â”€ Donate Preview Box â”€â”€ */
 .donate-preview {
   margin: 0 1.25rem;
   padding: 10px 14px;
@@ -1258,7 +1125,7 @@ function canDonate(item) {
   line-height: 1.5;
 }
 
-/* ── Form Elements ── */
+/* â”€â”€ Form Elements â”€â”€ */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -1297,7 +1164,7 @@ label {
   background: #fff;
 }
 
-/* ── Radio Group for Storage Location ── */
+/* â”€â”€ Radio Group for Storage Location â”€â”€ */
 .radio-group {
   display: flex;
   gap: 1.25rem;
@@ -1320,7 +1187,7 @@ label {
   cursor: pointer;
 }
 
-/* ── Validation Error Banner ── */
+/* â”€â”€ Validation Error Banner â”€â”€ */
 .error-msg {
   margin: 0.5rem 1.25rem 0;
   padding: 9px 13px;
@@ -1332,12 +1199,12 @@ label {
   font-weight: 600;
 }
 
-/* ── Vue Transition: Modal Fade ── */
+/* â”€â”€ Vue Transition: Modal Fade â”€â”€ */
 .fade-enter-active { transition: opacity 200ms ease; }
 .fade-leave-active { transition: opacity 150ms ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-/* ── MOBILE RESPONSIVE ── */
+/* â”€â”€ MOBILE RESPONSIVE â”€â”€ */
 @media (max-width: 860px) {
   .inventory-page { padding: 1rem; gap: 1rem; }
   .page-header h1 { font-size: 1.2rem; }

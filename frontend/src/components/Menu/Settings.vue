@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useToast } from '@/composables/useToast'
@@ -11,24 +11,28 @@ const router = useRouter()
 const { showToast } = useToast()
 const { unreadCount } = useNotifications()
 
-const userName = ref('Adrienne Kayana')
+const userName = computed(() => authService.user.value?.name || 'User')
+const profile = computed(() => authService.user.value || {})
 
 // ── Account Information ──
-const userEmail = ref('adrienne@example.com')
+const userEmail = computed(() => authService.user.value?.email || '')
 const editMode  = ref(false)
-const editName  = ref(userName.value)
-const editEmail = ref(userEmail.value)
+const editName  = ref('')
+const editEmail = ref('')
 
 function startEdit() {
   editName.value  = userName.value
   editEmail.value = userEmail.value
   editMode.value  = true
 }
-function saveEdit() {
-  userName.value  = editName.value
-  userEmail.value = editEmail.value
-  editMode.value  = false
-  showToast('Profile updated successfully', 'success', '👤')
+async function saveEdit() {
+  try {
+    await authService.updateProfile(editName.value, editEmail.value)
+    editMode.value  = false
+    showToast('Profile updated successfully', 'success', '👤')
+  } catch (err) {
+    showToast(err.message || 'Failed to update profile', 'warning')
+  }
 }
 function cancelEdit() {
   editMode.value = false
@@ -37,12 +41,27 @@ function cancelEdit() {
 // ── Security Settings ──
 const twoFactorEnabled = ref(false)
 
-function toggle2FA() {
-  twoFactorEnabled.value = !twoFactorEnabled.value
-  showToast(
-    twoFactorEnabled.value ? '2FA enabled — your account is more secure' : '2FA disabled',
-    twoFactorEnabled.value ? 'success' : 'warning',
-    '🔐'
+async function saveProfileSettings(patch, successMessage, successType = 'success') {
+  try {
+    await authService.updateProfile({
+      name: userName.value,
+      email: userEmail.value,
+      ...patch,
+    })
+    showToast(successMessage, successType)
+  } catch (err) {
+    showToast(err.message || 'Failed to save settings', 'warning')
+    syncProfileSettings()
+  }
+}
+
+async function toggle2FA() {
+  const next = !twoFactorEnabled.value
+  twoFactorEnabled.value = next
+  await saveProfileSettings(
+    { is2FAEnabled: next },
+    next ? '2FA enabled — your account is more secure' : '2FA disabled',
+    next ? 'success' : 'warning'
   )
 }
 
@@ -62,10 +81,13 @@ const donationVisibilityOptions = [
   { value: 'private',   label: 'Private',         desc: 'Only you can see your donation listings' },
 ]
 
-function setDonationVisibility(val) {
+async function setDonationVisibility(val) {
   donationVisibility.value = val
-  // FR-1.5: auto-applied to all existing and future listings
-  showToast(`Donation listings set to ${donationVisibilityOptions.find(o => o.value === val)?.label}`, 'success', '🔒')
+  await saveProfileSettings(
+    { listingVisibility: val },
+    `Donation listings set to ${donationVisibilityOptions.find(o => o.value === val)?.label}`,
+    'success'
+  )
 }
 
 function toggleVisibility(opt) {
@@ -81,10 +103,66 @@ const notifOptions = ref([
   { id: 'newsletter',       label: 'SavePlate Newsletter',     desc: 'Weekly tips on reducing food waste',          enabled: false },
 ])
 
-function toggleNotif(opt) {
+async function toggleNotif(opt) {
   opt.enabled = !opt.enabled
-  showToast(`${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`, opt.enabled ? 'notification' : 'warning', '🔔')
+  const fieldMap = {
+    'expiry-alerts': 'expiryAlerts',
+    'donation-updates': 'donationUpdates',
+    'meal-reminders': 'mealReminders',
+  }
+  const field = fieldMap[opt.id]
+  if (field) {
+    await saveProfileSettings(
+      { [field]: opt.enabled },
+      `${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`,
+      opt.enabled ? 'notification' : 'warning'
+    )
+  } else {
+    showToast(`${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`, opt.enabled ? 'notification' : 'warning')
+  }
 }
+
+function syncProfileSettings() {
+  twoFactorEnabled.value = Boolean(profile.value.is2FAEnabled)
+  donationVisibility.value = profile.value.listingVisibility || 'community'
+  showFullName.value = profile.value.showFullName !== false
+  showLocation.value = profile.value.showLocation !== false
+  notifOptions.value = notifOptions.value.map(opt => {
+    if (opt.id === 'expiry-alerts') return { ...opt, enabled: profile.value.expiryAlerts !== false }
+    if (opt.id === 'donation-updates') return { ...opt, enabled: profile.value.donationUpdates !== false }
+    if (opt.id === 'meal-reminders') return { ...opt, enabled: profile.value.mealReminders !== false }
+    return opt
+  })
+}
+
+async function toggleShowFullName() {
+  const next = !showFullName.value
+  showFullName.value = next
+  await saveProfileSettings(
+    { showFullName: next },
+    `Full name ${next ? 'shown' : 'hidden'} on listings`,
+    next ? 'info' : 'warning'
+  )
+}
+
+async function toggleShowLocation() {
+  const next = !showLocation.value
+  showLocation.value = next
+  await saveProfileSettings(
+    { showLocation: next },
+    `Location ${next ? 'shown' : 'hidden'} on listings`,
+    next ? 'info' : 'warning'
+  )
+}
+
+onMounted(async () => {
+  try {
+    await authService.getProfile()
+  } catch {
+    // The layout-level auth guard handles expired sessions; keep settings usable with cached state.
+  }
+  syncProfileSettings()
+})
 
 // ── Logout ──
 const showLogoutConfirm = ref(false)
@@ -253,7 +331,7 @@ function doLogout() {
                 id="toggle-show-full-name"
                 class="toggle-switch"
                 :class="{ on: showFullName }"
-                @click="showFullName = !showFullName; showToast(`Full name ${showFullName ? 'shown' : 'hidden'} on profile`, showFullName ? 'info' : 'warning', '👤')"
+                @click="toggleShowFullName"
                 :aria-checked="showFullName"
                 role="switch"
                 aria-label="Toggle full name visibility"
@@ -272,7 +350,7 @@ function doLogout() {
                 id="toggle-show-location"
                 class="toggle-switch"
                 :class="{ on: showLocation }"
-                @click="showLocation = !showLocation; showToast(`Location ${showLocation ? 'shown' : 'hidden'} on listings`, showLocation ? 'info' : 'warning', '📍')"
+                @click="toggleShowLocation"
                 :aria-checked="showLocation"
                 role="switch"
                 aria-label="Toggle location visibility"
@@ -401,7 +479,7 @@ function doLogout() {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Inter font loaded globally in style.css */
 
 .settings-page {
   padding: 1.75rem 1.5rem;

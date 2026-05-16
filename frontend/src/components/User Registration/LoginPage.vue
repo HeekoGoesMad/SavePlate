@@ -25,14 +25,21 @@ const passwordError = computed(() =>
   submitted.value && !password.value ? 'Password is required.' : ''
 )
 
+const serverError = ref('')
+
 const handleLogin = async () => {
   submitted.value = true
+  serverError.value = ''
   if (emailError.value || passwordError.value) return
   isLoading.value = true
-  await new Promise((r) => setTimeout(r, 1500))
-  isLoading.value = false
-  authService.login()
-  router.push({ name: 'dashboard' })
+  try {
+    await authService.loginUser(email.value.trim(), password.value)
+    router.push({ name: 'dashboard' })
+  } catch (err) {
+    serverError.value = err.message || 'Login failed. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -115,6 +122,8 @@ const handleLogin = async () => {
             <a href="#">Forgot password?</a>
           </div>
 
+          <p v-if="serverError" class="error-text" style="text-align: center; margin-bottom: 0.75rem;">{{ serverError }}</p>
+
           <button type="submit" id="btn-login" class="btn-primary" :disabled="isLoading">
             {{ isLoading ? 'Logging in...' : 'Login Now' }}
           </button>
@@ -135,7 +144,7 @@ const handleLogin = async () => {
 
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Inter font loaded globally in style.css */
 
 * {
   box-sizing: border-box;
@@ -397,7 +406,7 @@ const handleLogin = async () => {
 .btn-primary {
   width: 100%;
   padding: 14px;
-  background: #10b981; /* Solid attractive green */
+  background: linear-gradient(135deg, #2da12b, #22c55e);
   color: white;
   border: none;
   border-radius: 12px;
@@ -405,14 +414,14 @@ const handleLogin = async () => {
   font-weight: 600;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 4px 14px rgba(45, 161, 43, 0.28);
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #059669;
+  opacity: 0.92;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 6px 20px rgba(45, 161, 43, 0.35);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -469,7 +478,7 @@ const handleLogin = async () => {
 }
 
 .btn-secondary strong { 
-  color: #10b981; 
+  color: #2da12b; 
   font-weight: 600;
 }
 

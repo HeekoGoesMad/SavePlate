@@ -4,14 +4,21 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast }         from '@/composables/useToast'
+import { authService } from '@/services/authService'
+import { fetchAnalytics, filteredStats } from '@/services/analyticsService'
+import { items, fetchItems, daysUntilExpiry } from '@/services/inventoryService'
+import { useMealPlanner } from '@/composables/useMealPlanner'
 
 const router = useRouter()
 
 // ── Shared stores ──
-const { notifications, unreadCount, markRead } = useNotifications()
+const { notifications, unreadCount, markRead, fetchNotifications } = useNotifications()
 const { showToast } = useToast()
+const { mealPlan, loadMealPlan } = useMealPlanner()
 
 const today    = new Date()
+const userName = computed(() => authService.user.value?.name || 'User')
+const firstName = computed(() => userName.value.split(' ')[0] || 'User')
 const greeting = computed(() => {
   const h = today.getHours()
   if (h < 12) return 'Good morning'
@@ -19,30 +26,28 @@ const greeting = computed(() => {
   return 'Good evening'
 })
 
+const plannedMealsCount = computed(() => Object.values(mealPlan.value).flat().length)
+
+const expiringItems = computed(() =>
+  items.value
+    .filter(item => item.status === 'available')
+    .map(item => ({
+      ...item,
+      expireIn: daysUntilExpiry(item.expiryDate),
+      qty: `${item.quantity} ${item.unit}`,
+    }))
+    .filter(item => item.expireIn >= 0 && item.expireIn <= 3)
+    .sort((a, b) => a.expireIn - b.expireIn)
+    .slice(0, 4)
+)
+
 // Summary cards — Unread Alerts uses live shared unreadCount
 const summaryCards = computed(() => [
-  { label: 'Items Saved',   value: '34',                      unit: 'total',         icon: '🥦', color: '#2da12b', bg: '#f0faf0' },
-  { label: 'Expiring Soon', value: '3',                       unit: 'within 3 days', icon: '⚠️', color: '#f59e0b', bg: '#fffbeb' },
-  { label: 'Meals Planned', value: '11',                      unit: 'this week',     icon: '🍽️', color: '#3b82f6', bg: '#eff6ff' },
-  { label: 'Unread Alerts', value: String(unreadCount.value), unit: 'new',           icon: '🔔', color: '#ef4444', bg: '#fef2f2' },
+  { label: 'Items Saved',   value: String(filteredStats.value.totalSaved), unit: 'total',         icon: '🥦', color: '#2da12b', bg: '#f0faf0' },
+  { label: 'Expiring Soon', value: String(expiringItems.value.length),     unit: 'within 3 days', icon: '⚠️', color: '#f59e0b', bg: '#fffbeb' },
+  { label: 'Meals Planned', value: String(plannedMealsCount.value),        unit: 'this week',     icon: '🍽️', color: '#3b82f6', bg: '#eff6ff' },
+  { label: 'Unread Alerts', value: String(unreadCount.value),              unit: 'new',           icon: '🔔', color: '#ef4444', bg: '#fef2f2' },
 ])
-
-const expiringItems = [
-  { name: 'Fresh Milk',   expireIn: 1, category: 'Dairy',   qty: '1L',   urgency: 'urgent'  },
-  { name: 'Spinach',      expireIn: 2, category: 'Veggies', qty: '200g', urgency: 'warning' },
-  { name: 'Greek Yogurt', expireIn: 3, category: 'Dairy',   qty: '500g', urgency: 'soon'    },
-]
-
-const recentActivity = [
-  { color: '#f59e0b', msg: 'Fresh Milk expires tomorrow',              time: '2h ago',     read: false },
-  { color: '#2da12b', msg: 'Your donation of bread was claimed',       time: '5h ago',     read: false },
-  { color: '#3b82f6', msg: 'Meal reminder: Lunch not set for Wednesday', time: 'Yesterday', read: true  },
-  { color: '#ef4444', msg: 'New login from Chrome on Windows',         time: '2 days ago', read: true  },
-  { color: '#2da12b', msg: 'Spinach is close to expiry — add to plan?', time: '2 days ago', read: true },
-]
-
-const urgencyLabel = { urgent: '1 day', warning: '2 days', soon: '3 days' }
-const urgencyColor  = { urgent: '#ef4444', warning: '#f59e0b', soon: '#22c55e' }
 
 // ── Bell popup (desktop) — top 5 from shared store ──
 const TYPE_CONFIG = {
@@ -50,6 +55,27 @@ const TYPE_CONFIG = {
   donation:  { label: 'Donation',  icon: '🤝', color: '#2da12b' },
   meal:      { label: 'Meal',      icon: '📅', color: '#3b82f6' },
   account:   { label: 'Account',   icon: '🔐', color: '#ef4444' },
+}
+
+const recentActivity = computed(() =>
+  notifications.value.slice(0, 5).map(notification => ({
+    color: TYPE_CONFIG[notification.type]?.color || '#6b7280',
+    msg: notification.message,
+    time: notification.time,
+    read: notification.isRead,
+  }))
+)
+
+function urgencyLabel(days) {
+  if (days === 0) return 'today'
+  if (days === 1) return '1 day'
+  return `${days} days`
+}
+
+function urgencyColor(days) {
+  if (days <= 1) return '#ef4444'
+  if (days <= 2) return '#f59e0b'
+  return '#22c55e'
 }
 
 const popupNotifs = computed(() => notifications.value.slice(0, 5))
@@ -73,18 +99,26 @@ function handleClickOutside(e) {
     popupRef.value && !popupRef.value.contains(e.target)
   ) showPopup.value = false
 }
-onMounted(() => document.addEventListener('mousedown', handleClickOutside))
+onMounted(async () => {
+  document.addEventListener('mousedown', handleClickOutside)
+  await Promise.allSettled([
+    fetchItems(),
+    fetchAnalytics(),
+    fetchNotifications(),
+    loadMealPlan(),
+  ])
+})
 onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 </script>
 
 <template>
-  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
+  <AppLayout :unread-count="unreadCount" :user-name="userName">
     <div class="dashboard">
 
       <!-- ── Header ── -->
       <div class="page-header">
         <div class="header-text">
-          <h1>{{ greeting }}, Adrienne 👋</h1>
+          <h1>{{ greeting }}, {{ firstName }} 👋</h1>
           <p class="date-sub">{{ today.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' }) }}</p>
         </div>
         <!-- Bell: desktop only — mobile handled by AppLayout topbar -->
@@ -154,8 +188,8 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
                 <span class="expiry-meta">{{ item.category }} · {{ item.qty }}</span>
               </div>
               <span class="urgency-chip"
-                :style="{ background: urgencyColor[item.urgency] + '20', color: urgencyColor[item.urgency], borderColor: urgencyColor[item.urgency] + '40' }"
-              >{{ urgencyLabel[item.urgency] }}</span>
+                :style="{ background: urgencyColor(item.expireIn) + '20', color: urgencyColor(item.expireIn), borderColor: urgencyColor(item.expireIn) + '40' }"
+              >{{ urgencyLabel(item.expireIn) }}</span>
             </div>
             <div class="action-strip">
               <button class="strip-btn green" @click="router.push({ name: 'meal-planner' })">📅 Plan items</button>

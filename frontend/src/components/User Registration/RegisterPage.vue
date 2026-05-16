@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../../services/authService'
@@ -88,7 +88,8 @@ const handleRegister = async () => {
     await authService.registerUser(
       fullName.value.trim(),
       email.value.trim(),
-      password.value
+      password.value,
+      householdSize.value || undefined
     )
     // Navigate to the OTP verification page
     router.push({ name: 'verify', query: { email: email.value.trim() } })
@@ -278,7 +279,7 @@ const handleRegister = async () => {
 
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Inter font loaded globally in style.css */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
