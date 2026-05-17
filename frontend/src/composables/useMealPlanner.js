@@ -83,11 +83,12 @@ function getExpiringSuggestions(inv, mealPlan, thresholdDays = 2) {
   )
 }
 
+const weekOffset = ref(0)
+const mealPlan = ref({})
+const confirmedSnapshot = ref('{}')
+const isLoading = ref(false)
+
 export function useMealPlanner() {
-  const weekOffset = ref(0)
-  const mealPlan = ref({})
-  const confirmedSnapshot = ref('{}')
-  const isLoading = ref(false)
 
   const weekDays = computed(() => getWeekDays(weekOffset.value))
 

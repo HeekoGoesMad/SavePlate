@@ -89,15 +89,26 @@ exports.updateStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status.' });
     }
 
-    const update = { status };
-    if (status === 'used') update.usedAt = new Date();
-
-    const item = await Item.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      update,
-      { new: true }
-    );
+    // Find the item first to validate business rules
+    const item = await Item.findOne({ _id: req.params.id, userId: req.user.id });
     if (!item) return res.status(404).json({ message: 'Item not found.' });
+
+    // Validation: prevent invalid transitions to 'reserved'
+    if (status === 'reserved') {
+      if (item.status === 'donated') {
+        return res.status(400).json({ message: 'Donated items cannot be added to a meal plan.' });
+      }
+      if (item.status === 'used') {
+        return res.status(400).json({ message: 'Used items cannot be added to a meal plan.' });
+      }
+      if (isPastDate(item.expiryDate)) {
+        return res.status(400).json({ message: 'Expired items cannot be added to a meal plan.' });
+      }
+    }
+
+    item.status = status;
+    if (status === 'used') item.usedAt = new Date();
+    await item.save();
 
     res.json(item);
   } catch (error) {

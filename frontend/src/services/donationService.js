@@ -86,10 +86,39 @@ export async function confirmHandoverById(id) {
   return updated
 }
 
-// Kept for backward compatibility
-export function convertToDonationById(id) {}
-export function cancelDonationById(id) {}
-export function markAsUsedById(id) {
+export async function convertToDonationById(id) {
+  const response = await fetch(`${API_URL}/${id}/publish`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+  })
+  if (!response.ok) throw new Error('Failed to publish donation')
+  
+  const serverData = await response.json()
+  const idx = allItems.value.findIndex(i => i.id === id)
+  if (idx !== -1) allItems.value[idx] = normaliseDonation(serverData)
+}
+
+export async function cancelDonationById(id) {
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: 'DELETE',
+    headers: authService.authHeaders(),
+  })
+  if (!response.ok) throw new Error('Failed to hide donation')
+  
+  const serverData = await response.json()
+  const idx = allItems.value.findIndex(i => i.id === id)
+  if (idx !== -1) allItems.value[idx] = normaliseDonation(serverData)
+}
+export async function markAsUsedById(id) {
+  const response = await fetch(`${API_URL}/${id}/used`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.message || 'Failed to mark item as used')
+  }
+  // Remove from local list only after server confirms deletion
   const idx = allItems.value.findIndex(i => i.id === id)
   if (idx !== -1) allItems.value.splice(idx, 1)
 }
@@ -108,7 +137,6 @@ function normaliseDonation(d) {
   const daysLeft = Math.max(0, Math.round((new Date(expiryDate) - new Date()) / 86400000))
   const donorName = d.donorId?.name || CURRENT_USER()
   const claimedBy = d.claimedBy?.name || null
-  const isOwn = d.donorId?._id === authService.user.value?.id || d.donorId === authService.user.value?.id
 
   return {
     id: d._id,
@@ -122,7 +150,7 @@ function normaliseDonation(d) {
     category: d.category || 'Other',
     icon: CATEGORY_ICONS[d.category] || '📦',
     bg: CATEGORY_BG[d.category] || '#f8f8f8',
-    source: isOwn ? 'own' : 'donation',
+    source: d.status === 'hidden' ? 'own' : 'donation',
     donorName,
     status: d.status || 'available',
     notes: d.notes || '',

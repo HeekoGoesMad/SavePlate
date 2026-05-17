@@ -5,10 +5,11 @@
 // delete food items from their personal household inventory.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
-import { useToast }         from '@/composables/useToast'
-import { authService }      from '@/services/authService'
+import { useToast } from '@/composables/useToast'
+import { authService } from '@/services/authService'
 import {
   items, isLoading as itemsLoading,
   fetchItems, addItem as apiAddItem, updateItem as apiUpdateItem,
@@ -19,8 +20,9 @@ import { createDonation } from '@/services/donationService'
 
 const emit = defineEmits(['navigate'])
 
-const { unreadCount }   = useNotifications()
+const { unreadCount } = useNotifications()
 const { showToast } = useToast()
+const router = useRouter()
 
 // â”€â”€ Fetch items on mount â”€â”€
 onMounted(async () => {
@@ -38,21 +40,21 @@ const UNITS = ['pcs', 'g', 'kg', 'ml', 'L']
 
 // â”€â”€ COMPUTED: Summary Info Boxes â”€â”€
 const summaryCards = computed(() => {
-  const active      = items.value.filter(i => i.status === 'available')
+  const active = items.value.filter(i => i.status === 'available')
   const expiringSoon = active.filter(i => daysUntilExpiry(i.expiryDate) <= 3)
-  const usedCount   = items.value.filter(i => i.status === 'used').length
+  const usedCount = items.value.filter(i => i.status === 'used').length
 
   return [
-    { label: 'Total Items',   value: active.length,       unit: 'in inventory', icon: 'ðŸ“¦', color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Total Items', value: active.length, unit: 'in inventory', icon: 'ðŸ“¦', color: '#3b82f6', bg: '#eff6ff' },
     { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: 'âš ï¸', color: '#f59e0b', bg: '#fffbeb' },
-    { label: 'Items Used',    value: usedCount,            unit: 'saved from waste', icon: 'âœ…', color: '#22c55e', bg: '#f0fdf4' },
+    { label: 'Items Used', value: usedCount, unit: 'saved from waste', icon: 'âœ…', color: '#22c55e', bg: '#f0fdf4' },
   ]
 })
 
 // â”€â”€ FILTER / SORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const sortOption     = ref('expiryDate')
+const sortOption = ref('expiryDate')
 const filterCategory = ref('All')
-const filterStatus   = ref('available')
+const filterStatus = ref('available')
 
 const filteredItems = computed(() => {
   let list = items.value.filter(i => i.status === filterStatus.value)
@@ -196,7 +198,7 @@ function deleteItem(item) {
     openConfirmModal({
       title: 'Action Denied',
       message: 'This item is reserved for your meal plan. Please remove it from the plan before deleting.',
-      confirmText: 'OK', cancelText: '', onConfirm: () => {}
+      confirmText: 'OK', cancelText: '', onConfirm: () => { }
     })
     return
   }
@@ -216,20 +218,20 @@ function deleteItem(item) {
 
 // â”€â”€ DONATE MODAL â”€â”€
 const showDonateModal = ref(false)
-const donateTarget    = ref(null)
-const donateForm      = ref({ location: '', availability: '' })
-const donateError     = ref('')
+const donateTarget = ref(null)
+const donateForm = ref({ location: '', availability: '' })
+const donateError = ref('')
 
 function openDonateModal(item) {
   donateTarget.value = item
-  donateForm.value   = { location: '', availability: '' }
-  donateError.value  = ''
+  donateForm.value = { location: '', availability: '' }
+  donateError.value = ''
   showDonateModal.value = true
 }
 
 function closeDonateModal() {
   showDonateModal.value = false
-  donateTarget.value    = null
+  donateTarget.value = null
 }
 
 async function submitDonate() {
@@ -250,7 +252,7 @@ async function submitDonate() {
     })
     // Update inventory item status to 'donated'
     await apiDonateItem(donateTarget.value.id)
-    showToast('Your item has been listed for donation. Nearby users will be notified.', 'success')
+    showToast('Item ready for donation. Go to Browse Food to post it publicly.', 'success')
     closeDonateModal()
   } catch (err) {
     donateError.value = err.message || 'Failed to create donation listing.'
@@ -261,20 +263,32 @@ async function submitDonate() {
 function categoryIcon(category) {
   const map = {
     Vegetables: 'ðŸ¥¬', Dairy: 'ðŸ¥›', Canned: 'ðŸ¥«', Frozen: 'ðŸ§Š',
-    Bakery: 'ðŸž', Fruits: 'ðŸŽ', Protein: 'ðŸ¥š', Grains: 'ðŸš', Other: 'ðŸ“¦',
+    Vegetables: '🥦', Dairy: '🧀', Canned: '🥫', Frozen: '🧊',
+    Bakery: '🍞', Fruits: '🍎', Protein: '🥚', Grains: '🌾', Other: '📦',
   }
-  return map[category] ?? 'ðŸ½ï¸'
+  return map[category] ?? '🍽️'
 }
 
-// â”€â”€ DONATE ELIGIBILITY â”€â”€
+// ── DONATE ELIGIBILITY ──
 const DONATE_THRESHOLD_DAYS = 7
 function canDonate(item) {
   return daysUntilExpiry(item.expiryDate) <= DONATE_THRESHOLD_DAYS
 }
+
+// ── MEAL PLAN ELIGIBILITY ──
+function canAddToMealPlan(item) {
+  return item.status === 'available' && daysUntilExpiry(item.expiryDate) >= 0
+}
+
+function goToMealPlan(item) {
+  showToast(`Navigate to Meal Planner to use "${item.name}" in your meals.`, 'success')
+  router.push({ name: 'meal-planner' })
+}
 </script>
 
 <template>
-  <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana" @navigate="emit('navigate', $event)">
+  <AppLayout current-page="inventory" :unread-count="unreadCount" user-name="Adrienne Kayana"
+    @navigate="emit('navigate', $event)">
     <div class="inventory-page">
 
       <!-- â•â• PAGE HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
@@ -292,12 +306,8 @@ function canDonate(item) {
       <!-- â•â• INFO BOXES (Summary Cards) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
       <!-- Match Dashboard summary card style -->
       <div class="cards-row">
-        <div
-          v-for="card in summaryCards"
-          :key="card.label"
-          class="summary-card"
-          :style="{ '--card-color': card.color, '--card-bg': card.bg }"
-        >
+        <div v-for="card in summaryCards" :key="card.label" class="summary-card"
+          :style="{ '--card-color': card.color, '--card-bg': card.bg }">
           <div class="card-icon">{{ card.icon }}</div>
           <div class="card-body">
             <div class="card-value">{{ card.value }}</div>
@@ -354,24 +364,17 @@ function canDonate(item) {
 
       <!-- Item grid (matches BrowseFood card layout) -->
       <div v-else class="food-grid">
-        <div
-          v-for="item in filteredItems"
-          :key="item.id"
-          class="food-card"
+        <div v-for="item in filteredItems" :key="item.id" class="food-card"
           :class="{ urgent: item.status !== 'used' && daysUntilExpiry(item.expiryDate) <= 2 }"
-          :style="{ '--card-bg': getExpiryStatus(item).bgColor }"
-        >
+          :style="{ '--card-bg': getExpiryStatus(item).bgColor }">
           <!-- Card top: icon + expiry badge -->
           <div class="card-top" :style="{ background: getExpiryStatus(item).bgColor }">
             <span class="food-icon">{{ categoryIcon(item.category) }}</span>
-            <span
-              class="urgency-chip"
-              :style="{
-                background: getExpiryStatus(item).color + '18',
-                color: getExpiryStatus(item).color,
-                borderColor: getExpiryStatus(item).color + '40'
-              }"
-            >{{ getExpiryStatus(item).label }}</span>
+            <span class="urgency-chip" :style="{
+              background: getExpiryStatus(item).color + '18',
+              color: getExpiryStatus(item).color,
+              borderColor: getExpiryStatus(item).color + '40'
+            }">{{ getExpiryStatus(item).label }}</span>
           </div>
 
           <!-- Card body -->
@@ -403,16 +406,16 @@ function canDonate(item) {
           <!-- Card footer: action buttons -->
           <div class="card-footer">
             <div class="inv-actions">
-              <button v-if="item.status !== 'used'" class="btn-action edit" @click="openEditModal(item)" title="Edit">Edit</button>
-              <button
-                v-if="item.status !== 'used'"
-                class="btn-action donate"
-                :class="{ 'btn-disabled': !canDonate(item) }"
-                :disabled="!canDonate(item)"
+              <button v-if="item.status !== 'used'" class="btn-action edit" @click="openEditModal(item)"
+                title="Edit">Edit</button>
+              <button v-if="canAddToMealPlan(item)" class="btn-action meal" title="Add to Meal Plan"
+                @click="goToMealPlan(item)">Add to Meal Plan</button>
+              <button v-if="item.status !== 'used'" class="btn-action donate"
+                :class="{ 'btn-disabled': !canDonate(item) }" :disabled="!canDonate(item)"
                 :title="canDonate(item) ? 'Convert to Donation' : 'Can only donate items expiring within 7 days'"
-                @click="canDonate(item) && openDonateModal(item)"
-              >Donate</button>
-              <button v-if="item.status !== 'used'" class="btn-action used" @click="markAsUsed(item)" title="Mark as used">Mark as Used</button>
+                @click="canDonate(item) && openDonateModal(item)">Donate</button>
+              <button v-if="item.status !== 'used'" class="btn-action used" @click="markAsUsed(item)"
+                title="Mark as used">Mark as Used</button>
               <button class="btn-action delete" @click="deleteItem(item)" title="Delete">Delete</button>
             </div>
             <p v-if="item.status !== 'used' && !canDonate(item)" class="donate-hint">
@@ -447,13 +450,8 @@ function canDonate(item) {
               <!-- Food Name (required) -->
               <div class="form-group">
                 <label for="add-name">Food Name <span class="required">*</span></label>
-                <input
-                  id="add-name"
-                  v-model="newItem.name"
-                  type="text"
-                  placeholder="e.g. Fresh Spinach"
-                  class="form-input"
-                />
+                <input id="add-name" v-model="newItem.name" type="text" placeholder="e.g. Fresh Spinach"
+                  class="form-input" />
               </div>
 
               <!-- Category (required) -->
@@ -469,14 +467,8 @@ function canDonate(item) {
               <div class="form-row">
                 <div class="form-group">
                   <label for="add-qty">Quantity <span class="required">*</span></label>
-                  <input
-                    id="add-qty"
-                    v-model.number="newItem.quantity"
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 200"
-                    class="form-input"
-                  />
+                  <input id="add-qty" v-model.number="newItem.quantity" type="number" min="1" placeholder="e.g. 200"
+                    class="form-input" />
                 </div>
                 <div class="form-group">
                   <label for="add-unit">Unit <span class="required">*</span></label>
@@ -489,13 +481,8 @@ function canDonate(item) {
               <!-- Expiry Date (required, must not be in the past) -->
               <div class="form-group">
                 <label for="add-expiry">Expiry Date <span class="required">*</span></label>
-                <input
-                  id="add-expiry"
-                  v-model="newItem.expiryDate"
-                  type="date"
-                  :min="getTodayString()"
-                  class="form-input"
-                />
+                <input id="add-expiry" v-model="newItem.expiryDate" type="date" :min="getTodayString()"
+                  class="form-input" />
               </div>
 
               <!-- Storage Location (optional) -->
@@ -512,13 +499,8 @@ function canDonate(item) {
               <!-- Notes (optional) -->
               <div class="form-group">
                 <label for="add-notes">Notes <span class="optional">(optional)</span></label>
-                <textarea
-                  id="add-notes"
-                  v-model="newItem.notes"
-                  rows="2"
-                  placeholder="e.g. Opened on April 18"
-                  class="form-input"
-                ></textarea>
+                <textarea id="add-notes" v-model="newItem.notes" rows="2" placeholder="e.g. Opened on April 18"
+                  class="form-input"></textarea>
               </div>
             </div>
 
@@ -576,13 +558,8 @@ function canDonate(item) {
 
               <div class="form-group">
                 <label for="edit-expiry">Expiry Date <span class="required">*</span></label>
-                <input
-                  id="edit-expiry"
-                  v-model="editItem.expiryDate"
-                  type="date"
-                  :min="getTodayString()"
-                  class="form-input"
-                />
+                <input id="edit-expiry" v-model="editItem.expiryDate" type="date" :min="getTodayString()"
+                  class="form-input" />
               </div>
 
               <div class="form-group">
@@ -638,25 +615,15 @@ function canDonate(item) {
               <!-- Pickup Location (required) -->
               <div class="form-group">
                 <label for="donate-location">Pickup Location <span class="required">*</span></label>
-                <input
-                  id="donate-location"
-                  v-model="donateForm.location"
-                  type="text"
-                  placeholder="e.g. Jl. Diponegoro No. 12, Denpasar"
-                  class="form-input"
-                />
+                <input id="donate-location" v-model="donateForm.location" type="text"
+                  placeholder="e.g. Jl. Diponegoro No. 12, Denpasar" class="form-input" />
               </div>
 
               <!-- Availability Window (required) -->
               <div class="form-group">
                 <label for="donate-avail">Pickup Availability <span class="required">*</span></label>
-                <input
-                  id="donate-avail"
-                  v-model="donateForm.availability"
-                  type="text"
-                  placeholder="e.g. Weekdays 3PM â€“ 7PM"
-                  class="form-input"
-                />
+                <input id="donate-avail" v-model="donateForm.availability" type="text"
+                  placeholder="e.g. Weekdays 3PM â€“ 7PM" class="form-input" />
               </div>
             </div>
 
@@ -685,11 +652,9 @@ function canDonate(item) {
               <p style="font-size: 0.9rem; color: #3a4a3a; line-height: 1.5; margin: 0;">{{ confirmData.message }}</p>
             </div>
             <div class="modal-footer">
-              <button v-if="confirmData.cancelText" class="btn-secondary" @click="closeConfirmModal">{{ confirmData.cancelText }}</button>
-              <button
-                :class="confirmData.isDanger ? 'btn-danger' : 'btn-primary'"
-                @click="executeConfirm"
-              >
+              <button v-if="confirmData.cancelText" class="btn-secondary" @click="closeConfirmModal">{{
+                confirmData.cancelText }}</button>
+              <button :class="confirmData.isDanger ? 'btn-danger' : 'btn-primary'" @click="executeConfirm">
                 {{ confirmData.confirmText }}
               </button>
             </div>
@@ -720,7 +685,12 @@ function canDonate(item) {
   justify-content: space-between;
   gap: 1rem;
 }
-.header-text { flex: 1; min-width: 0; }
+
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .page-header h1 {
   font-size: 1.5rem;
   font-weight: 800;
@@ -731,7 +701,12 @@ function canDonate(item) {
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
-.sub { font-size: 0.78rem; color: #9ca3af; font-weight: 500; }
+
+.sub {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
 
 /* â”€â”€ Summary Cards Row â”€â”€ */
 .cards-row {
@@ -739,25 +714,51 @@ function canDonate(item) {
   grid-template-columns: repeat(3, 1fr);
   gap: 0.875rem;
 }
+
 .summary-card {
   background: var(--card-bg, #fff);
-  border: 1px solid rgba(0,0,0,0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   border-radius: 14px;
   padding: 1rem;
   display: flex;
   align-items: center;
   gap: 0.875rem;
-  transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms;
   cursor: default;
 }
+
 .summary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
-.card-icon  { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
-.card-value { font-size: 1.65rem; font-weight: 900; color: var(--card-color, #3b82f6); line-height: 1; letter-spacing: -0.03em; }
-.card-label { font-size: 0.73rem; font-weight: 700; color: #374151; margin-top: 3px; letter-spacing: -0.01em; }
-.card-unit  { font-size: 0.63rem; color: #9ca3af; font-weight: 500; }
+
+.card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.card-value {
+  font-size: 1.65rem;
+  font-weight: 900;
+  color: var(--card-color, #3b82f6);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.card-label {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #374151;
+  margin-top: 3px;
+  letter-spacing: -0.01em;
+}
+
+.card-unit {
+  font-size: 0.63rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
 
 /* â”€â”€ Controls Bar â”€â”€ */
 .controls-bar {
@@ -770,17 +771,20 @@ function canDonate(item) {
   border: 1px solid #e6ece6;
   border-radius: 12px;
 }
+
 .filter-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 .control-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: #6b7280;
   white-space: nowrap;
 }
+
 .select-control {
   padding: 6px 10px;
   border: 1.5px solid #e5e7eb;
@@ -793,10 +797,14 @@ function canDonate(item) {
   outline: none;
   transition: border-color 150ms, box-shadow 150ms;
 }
-.select-control:hover { border-color: #d1d5db; }
+
+.select-control:hover {
+  border-color: #d1d5db;
+}
+
 .select-control:focus {
   border-color: #2da12b;
-  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
+  box-shadow: 0 0 0 3px rgba(45, 161, 43, 0.12);
   background: #fff;
 }
 
@@ -807,12 +815,14 @@ function canDonate(item) {
   justify-content: space-between;
   padding: 0.25rem 0;
 }
+
 .panel-head h2 {
   font-size: 0.9rem;
   font-weight: 800;
   color: #111827;
   letter-spacing: -0.01em;
 }
+
 .item-count {
   font-size: 0.73rem;
   color: #9ca3af;
@@ -834,8 +844,16 @@ function canDonate(item) {
   border: 1px solid #e6ece6;
   border-radius: 16px;
 }
-.empty-icon { font-size: 2.75rem; }
-.empty-state p { font-size: 0.88rem; color: #6b7280; line-height: 1.5; }
+
+.empty-icon {
+  font-size: 2.75rem;
+}
+
+.empty-state p {
+  font-size: 0.88rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
 
 /* â”€â”€ Food cards grid â”€â”€ */
 .food-grid {
@@ -851,13 +869,15 @@ function canDonate(item) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 200ms cubic-bezier(0.16,1,0.3,1), box-shadow 200ms, border-color 150ms;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms, border-color 150ms;
 }
+
 .food-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.09);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.09);
   border-color: #bcd8bc;
 }
+
 .food-card.urgent {
   border-left: 3px solid #ef4444;
 }
@@ -868,7 +888,12 @@ function canDonate(item) {
   justify-content: space-between;
   padding: 1rem 1rem 0.75rem;
 }
-.food-icon { font-size: 2rem; line-height: 1; }
+
+.food-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .urgency-chip {
   font-size: 0.67rem;
   font-weight: 700;
@@ -883,6 +908,7 @@ function canDonate(item) {
   padding: 0 1rem 0.75rem;
   flex: 1;
 }
+
 .card-category {
   font-size: 0.63rem;
   font-weight: 800;
@@ -891,6 +917,7 @@ function canDonate(item) {
   color: #2da12b;
   margin-bottom: 4px;
 }
+
 .card-name {
   font-size: 0.98rem;
   font-weight: 800;
@@ -907,12 +934,19 @@ function canDonate(item) {
   flex-direction: column;
   gap: 3px;
 }
+
 .card-meta-row {
   display: flex;
   align-items: flex-start;
   gap: 6px;
 }
-.meta-icon { font-size: 0.78rem; flex-shrink: 0; line-height: 1.5; }
+
+.meta-icon {
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
 .meta-text {
   font-size: 0.76rem;
   color: #6b7280;
@@ -936,6 +970,7 @@ function canDonate(item) {
   opacity: 0.35;
   cursor: not-allowed;
 }
+
 .btn-action.btn-disabled:hover {
   opacity: 0.35;
   transform: none;
@@ -947,6 +982,7 @@ function canDonate(item) {
   flex-wrap: wrap;
   gap: 0.35rem;
 }
+
 .btn-action {
   padding: 5px 10px;
   font-size: 0.71rem;
@@ -955,18 +991,50 @@ function canDonate(item) {
   border: none;
   border-radius: 7px;
   cursor: pointer;
-  transition: opacity 150ms, transform 150ms cubic-bezier(0.16,1,0.3,1);
+  transition: opacity 150ms, transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
   min-height: 28px;
 }
-.btn-action:hover:not(.btn-disabled) { opacity: 0.8; transform: translateY(-1px); }
-.btn-action:active:not(.btn-disabled) { transform: scale(0.96); opacity: 1; }
-.btn-action:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
 
-.btn-action.edit   { background: #eff6ff; color: #3b82f6; }
-.btn-action.donate { background: #f0faf0; color: #2da12b; }
-.btn-action.used   { background: #f0fdf4; color: #16a34a; }
-.btn-action.delete { background: #fef2f2; color: #ef4444; }
+.btn-action:hover:not(.btn-disabled) {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.btn-action:active:not(.btn-disabled) {
+  transform: scale(0.96);
+  opacity: 1;
+}
+
+.btn-action:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: 2px;
+}
+
+.btn-action.edit {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.btn-action.meal {
+  background: #eef2ff;
+  color: #6366f1;
+}
+
+.btn-action.donate {
+  background: #f0faf0;
+  color: #2da12b;
+}
+
+.btn-action.used {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.btn-action.delete {
+  background: #fef2f2;
+  color: #ef4444;
+}
 
 /* â”€â”€ Primary & Secondary Buttons â”€â”€ */
 .btn-primary {
@@ -979,14 +1047,27 @@ function canDonate(item) {
   font-family: inherit;
   border-radius: 9px;
   cursor: pointer;
-  transition: opacity 150ms, transform 150ms cubic-bezier(0.16,1,0.3,1), box-shadow 150ms;
+  transition: opacity 150ms, transform 150ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 150ms;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(45,161,43,0.2);
+  box-shadow: 0 2px 8px rgba(45, 161, 43, 0.2);
   letter-spacing: -0.01em;
 }
-.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(45,161,43,0.28); }
-.btn-primary:active { transform: scale(0.97); opacity: 1; }
-.btn-primary:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
+
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 161, 43, 0.28);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  opacity: 1;
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: 3px;
+}
 
 .btn-secondary {
   background: #f3f4f6;
@@ -1001,8 +1082,16 @@ function canDonate(item) {
   transition: background 150ms, border-color 150ms;
   letter-spacing: -0.01em;
 }
-.btn-secondary:hover { background: #e9eaec; border-color: #d1d5db; }
-.btn-secondary:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
+
+.btn-secondary:hover {
+  background: #e9eaec;
+  border-color: #d1d5db;
+}
+
+.btn-secondary:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: 3px;
+}
 
 .btn-donate {
   background: linear-gradient(135deg, #2da12b, #22c55e);
@@ -1015,11 +1104,19 @@ function canDonate(item) {
   border-radius: 9px;
   cursor: pointer;
   transition: opacity 150ms, transform 150ms;
-  box-shadow: 0 2px 8px rgba(45,161,43,0.2);
+  box-shadow: 0 2px 8px rgba(45, 161, 43, 0.2);
   letter-spacing: -0.01em;
 }
-.btn-donate:hover { opacity: 0.9; transform: translateY(-1px); }
-.btn-donate:focus-visible { outline: 2px solid #2da12b; outline-offset: 3px; }
+
+.btn-donate:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-donate:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: 3px;
+}
 
 .btn-danger {
   background: #ef4444;
@@ -1035,9 +1132,21 @@ function canDonate(item) {
   white-space: nowrap;
   letter-spacing: -0.01em;
 }
-.btn-danger:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(239,68,68,0.28); }
-.btn-danger:active { transform: scale(0.97); }
-.btn-danger:focus-visible { outline: 2px solid #ef4444; outline-offset: 3px; }
+
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.28);
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
+
+.btn-danger:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 3px;
+}
 
 /* â”€â”€ Modal Overlay â”€â”€ */
 .modal-overlay {
@@ -1061,7 +1170,7 @@ function canDonate(item) {
   max-width: 460px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   border: 1px solid #e6ece6;
@@ -1074,12 +1183,14 @@ function canDonate(item) {
   padding: 1.1rem 1.25rem 0.875rem;
   border-bottom: 1px solid #f0f4f0;
 }
+
 .modal-header h3 {
   font-size: 1rem;
   font-weight: 800;
   color: #111827;
   letter-spacing: -0.01em;
 }
+
 .modal-close {
   background: #f3f4f6;
   border: none;
@@ -1094,8 +1205,16 @@ function canDonate(item) {
   transition: background 150ms, color 150ms;
   color: #6b7280;
 }
-.modal-close:hover { background: #e5e7eb; color: #111827; }
-.modal-close:focus-visible { outline: 2px solid #2da12b; outline-offset: 2px; }
+
+.modal-close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid #2da12b;
+  outline-offset: 2px;
+}
 
 .modal-body {
   padding: 1rem 1.25rem;
@@ -1131,19 +1250,29 @@ function canDonate(item) {
   flex-direction: column;
   gap: 4px;
 }
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;
 }
+
 label {
   font-size: 0.8rem;
   font-weight: 600;
   color: #374151;
   letter-spacing: -0.01em;
 }
-.required { color: #ef4444; }
-.optional { font-size: 0.72rem; font-weight: 400; color: #9ca3af; }
+
+.required {
+  color: #ef4444;
+}
+
+.optional {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #9ca3af;
+}
 
 .form-input {
   padding: 9px 12px;
@@ -1157,10 +1286,14 @@ label {
   transition: border-color 150ms, box-shadow 150ms, background 150ms;
   resize: vertical;
 }
-.form-input:hover { border-color: #d1d5db; }
+
+.form-input:hover {
+  border-color: #d1d5db;
+}
+
 .form-input:focus {
   border-color: #2da12b;
-  box-shadow: 0 0 0 3px rgba(45,161,43,0.12);
+  box-shadow: 0 0 0 3px rgba(45, 161, 43, 0.12);
   background: #fff;
 }
 
@@ -1171,6 +1304,7 @@ label {
   margin-top: 5px;
   flex-wrap: wrap;
 }
+
 .radio-label {
   display: flex;
   align-items: center;
@@ -1180,6 +1314,7 @@ label {
   color: #374151;
   cursor: pointer;
 }
+
 .radio-label input[type="radio"] {
   accent-color: #2da12b;
   width: 16px;
@@ -1200,24 +1335,66 @@ label {
 }
 
 /* â”€â”€ Vue Transition: Modal Fade â”€â”€ */
-.fade-enter-active { transition: opacity 200ms ease; }
-.fade-leave-active { transition: opacity 150ms ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active {
+  transition: opacity 200ms ease;
+}
+
+.fade-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 /* â”€â”€ MOBILE RESPONSIVE â”€â”€ */
 @media (max-width: 860px) {
-  .inventory-page { padding: 1rem; gap: 1rem; }
-  .page-header h1 { font-size: 1.2rem; }
-  .cards-row { grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
-  .food-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-  .controls-bar { padding: 0.75rem; gap: 0.625rem; }
+  .inventory-page {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .cards-row {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .food-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .controls-bar {
+    padding: 0.75rem;
+    gap: 0.625rem;
+  }
 }
 
 @media (max-width: 600px) {
-  .cards-row { grid-template-columns: 1fr; }
-  .food-grid { grid-template-columns: 1fr; }
-  .inv-actions { gap: 0.3rem; }
-  .btn-action { padding: 5px 7px; font-size: 0.67rem; }
-  .form-row { grid-template-columns: 1fr; }
+  .cards-row {
+    grid-template-columns: 1fr;
+  }
+
+  .food-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-actions {
+    gap: 0.3rem;
+  }
+
+  .btn-action {
+    padding: 5px 7px;
+    font-size: 0.67rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast } from '@/composables/useToast'
 import {
   allItems, claimItemById, cancelClaimById, confirmHandoverById,
-  convertToDonationById, cancelDonationById, markAsUsedById
+  convertToDonationById, cancelDonationById, markAsUsedById, fetchDonations
 } from '@/services/donationService'
 
 const { unreadCount, addNotification } = useNotifications()
@@ -29,8 +29,10 @@ const CATEGORIES = [
   { label: 'Other', icon: '🍱', bg: '#f8f8f8' },
 ]
 
-// ── Demo User ──
-const CURRENT_USER = 'Adrienne Kayana'
+// ── Current User ──
+import { authService } from '@/services/authService'
+
+const CURRENT_USER = computed(() => authService.user.value?.name || 'User')
 
 function computeDaysLeft(expiryDateStr) {
   if (!expiryDateStr) return 0
@@ -40,6 +42,10 @@ function computeDaysLeft(expiryDateStr) {
   expiry.setHours(0, 0, 0, 0)
   return Math.round((expiry - today) / (1000 * 60 * 60 * 24))
 }
+
+onMounted(() => {
+  fetchDonations()
+})
 
 // dummy data moved to services/donationService.js
 
@@ -134,24 +140,24 @@ function closeDetail() {
   confirmMsg.value = ''
 }
 
-function markAsUsed(item) {
-  markAsUsedById(item.id)
-  showConfirm('✅ Item marked as used and removed from your inventory.')
-  closeDetail()
+async function markAsUsed(item) {
+  try {
+    await markAsUsedById(item.id)
+    closeDetail()
+    showToast(`✅ "${item.name}" marked as used and removed from your inventory.`, 'success', '✅')
+  } catch (err) {
+    showToast(err.message || 'Failed to mark item as used', 'warning', '⚠️')
+  }
 }
 
-
-function addToMealPlan(item) {
-  showConfirm(`${item.name} has been added to your meal plan.`)
-}
 
 // ── Helper: is the current user the donor of this donation item? ──
 function isOwnDonation(item) {
-  return item.source === 'donation' && item.donorName === CURRENT_USER
+  return item.source === 'donation' && item.donorName === CURRENT_USER.value
 }
 
 // ── Claim Action ──
-function submitClaim(item) {
+async function submitClaim(item) {
   if (!item) return
 
   // Guard: prevent the original donor from claiming their own item
@@ -160,28 +166,32 @@ function submitClaim(item) {
     return
   }
 
-  // Update status → reserved in allItems
-  claimItemById(item.id, CURRENT_USER)
-  // Sync detailItem if open
-  if (detailItem.value?.id === item.id) {
-    detailItem.value = {
-      ...detailItem.value,
-      status: 'reserved',
-      claimedBy: CURRENT_USER,
+  try {
+    // Update status → reserved in allItems
+    await claimItemById(item.id)
+    // Sync detailItem if open
+    if (detailItem.value?.id === item.id) {
+      detailItem.value = {
+        ...detailItem.value,
+        status: 'reserved',
+        claimedBy: CURRENT_USER.value,
+      }
     }
-  }
-  showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
+    showToast(`"${item.name}" claimed successfully! 🎉`, 'success', '✅')
 
-  // Notify the donor (FR-3.4)
-  if (item.donorName && item.donorName !== CURRENT_USER) {
-    addNotification('donation', `Your item "${item.name}" has been claimed by ${CURRENT_USER}.`, 'browse')
+    // Notify the donor (FR-3.4)
+    if (item.donorName && item.donorName !== CURRENT_USER.value) {
+      addNotification('donation', `Your item "${item.name}" has been claimed by ${CURRENT_USER.value}.`, 'browse')
+    }
+  } catch (err) {
+    showToast(err.message || 'Failed to claim item', 'warning', '⚠️')
   }
 }
 
 // Cancel Claim
 function cancelClaim(item) {
   cancelClaimById(item.id)
-  
+
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, status: 'available', claimedBy: undefined }
   }
@@ -200,8 +210,8 @@ function confirmHandover(item) {
 }
 
 // ── Convert to Donation (FR-3.3) ──
-function convertToDonation(item) {
-  convertToDonationById(item.id)
+async function convertToDonation(item) {
+  await convertToDonationById(item.id)
   if (detailItem.value?.id === item.id) {
     detailItem.value = { ...detailItem.value, source: 'donation', convertedFromOwn: true }
   }
@@ -210,25 +220,30 @@ function convertToDonation(item) {
 }
 
 // ── Cancel Donation — return item to inventory (FR-3.3) ──
-function cancelDonation(item) {
+async function cancelDonation(item) {
   // Only allowed if no one has claimed the item yet
   const idx = allItems.value.findIndex(i => i.id === item.id)
   if (idx === -1 || allItems.value[idx].status !== 'available') {
     showToast('This item has already been claimed and cannot be returned.', 'warning', '⚠️')
     return
   }
-  cancelDonationById(item.id)
-  if (detailItem.value?.id === item.id) {
-    detailItem.value = { ...detailItem.value, source: 'own', convertedFromOwn: undefined }
+
+  try {
+    await cancelDonationById(item.id)
+    if (detailItem.value?.id === item.id) {
+      detailItem.value = { ...detailItem.value, source: 'own', convertedFromOwn: undefined }
+    }
+    showToast(`"${item.name}" returned to your inventory`, 'success')
+    addNotification('inventory', `You returned "${item.name}" to your inventory.`, 'browse')
+  } catch (err) {
+    showToast('Failed to cancel donation', 'warning', '⚠️')
   }
-  showToast(`"${item.name}" returned to your inventory `, 'success')
-  addNotification('inventory', `You returned "${item.name}" to your inventory.`, 'browse')
 }
 
 </script>
 
 <template>
-  <AppLayout :unread-count="unreadCount" user-name="Adrienne Kayana">
+  <AppLayout :unread-count="unreadCount" :user-name="CURRENT_USER">
     <div class="browse-page">
 
       <!-- ── Page Header ── -->
@@ -343,7 +358,7 @@ function cancelDonation(item) {
               <div class="card-meta-row"><span class="meta-icon">📍</span><span class="meta-text address">{{
                 item.address }}</span></div>
               <div class="card-meta-row"><span class="meta-icon">📅</span><span class="meta-text">Expires {{ item.expiry
-                  }}</span></div>
+              }}</span></div>
             </div>
           </div>
 
@@ -494,17 +509,13 @@ function cancelDonation(item) {
                   </template>
                 </template>
 
-                <!-- OWN items (FR-3.3: Mark as Used, Add to Meal Plan, Convert to Donation) -->
+                <!-- OWN items (FR-3.3: Mark as Used, Convert to Donation) -->
                 <template v-else-if="detailItem.source === 'own'">
                   <div class="action-group-label">Actions</div>
                   <div class="action-grid">
                     <button class="action-btn action-btn--used" @click="markAsUsed(detailItem)">
                       <span class="action-btn-icon"></span>
                       <span>Mark as Used</span>
-                    </button>
-                    <button class="action-btn action-btn--meal" @click="addToMealPlan(detailItem)">
-                      <span class="action-btn-icon"></span>
-                      <span>Add to Meal Plan</span>
                     </button>
                     <button class="action-btn action-btn--donate" @click="convertToDonation(detailItem)">
                       <span class="action-btn-icon"></span>
@@ -1439,11 +1450,7 @@ function cancelDonation(item) {
   color: #2da12b;
 }
 
-.action-btn--meal:hover {
-  background: #eff6ff;
-  border-color: #3b82f6;
-  color: #3b82f6;
-}
+
 
 .action-btn--donate:hover {
   background: #fff7ed;
