@@ -39,8 +39,8 @@ const userSchema = new mongoose.Schema(
     },
     listingVisibility: {
       type: String,
-      enum: ['public', 'community', 'private'],
-      default: 'community',
+      enum: ['public', 'private'],
+      default: 'public',
     },
     showFullName: {
       type: Boolean,

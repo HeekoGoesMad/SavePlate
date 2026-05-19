@@ -1,9 +1,9 @@
 ﻿<script setup>
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Inventory.vue  â€“  Use Case 2: Manage Food Inventory
+// ─────────────────────────────────────────────────────────
+// Inventory.vue  –  Use Case 2: Manage Food Inventory
 // Allows users to add, edit, mark as used, donate, and
 // delete food items from their personal household inventory.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/Layout/AppLayout.vue'
@@ -14,6 +14,7 @@ import {
   items, isLoading as itemsLoading,
   fetchItems, addItem as apiAddItem, updateItem as apiUpdateItem,
   deleteItem as apiDeleteItem, markAsUsed as apiMarkUsed, donateItem as apiDonateItem,
+  reserveItem as apiReserveItem,
   getTodayString, daysUntilExpiry, getExpiryStatus,
 } from '@/services/inventoryService'
 import { createDonation } from '@/services/donationService'
@@ -24,7 +25,7 @@ const { unreadCount } = useNotifications()
 const { showToast } = useToast()
 const router = useRouter()
 
-// â”€â”€ Fetch items on mount â”€â”€
+// ── Fetch items on mount ──
 onMounted(async () => {
   try {
     await fetchItems()
@@ -33,25 +34,25 @@ onMounted(async () => {
   }
 })
 
-// â”€â”€ CONSTANTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CONSTANTS ────────────────────────────────────────────
 const CATEGORIES = ['Vegetables', 'Dairy', 'Canned', 'Frozen', 'Bakery', 'Other']
 const STORAGE_LOCATIONS = ['Fridge', 'Freezer', 'Pantry']
 const UNITS = ['pcs', 'g', 'kg', 'ml', 'L']
 
-// â”€â”€ COMPUTED: Summary Info Boxes â”€â”€
+// ── COMPUTED: Summary Info Boxes ──
 const summaryCards = computed(() => {
   const active = items.value.filter(i => i.status === 'available')
   const expiringSoon = active.filter(i => daysUntilExpiry(i.expiryDate) <= 3)
   const usedCount = items.value.filter(i => i.status === 'used').length
 
   return [
-    { label: 'Total Items', value: active.length, unit: 'in inventory', icon: 'ðŸ“¦', color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Total Items', value: active.length, unit: 'in inventory', icon: '📦', color: '#3b82f6', bg: '#eff6ff' },
     { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: 'âš ï¸', color: '#f59e0b', bg: '#fffbeb' },
-    { label: 'Items Used', value: usedCount, unit: 'saved from waste', icon: 'âœ…', color: '#22c55e', bg: '#f0fdf4' },
+    { label: 'Items Used', value: usedCount, unit: 'saved from waste', icon: '✅', color: '#22c55e', bg: '#f0fdf4' },
   ]
 })
 
-// â”€â”€ FILTER / SORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── FILTER / SORT ─────────────────────────────────────────
 const sortOption = ref('expiryDate')
 const filterCategory = ref('All')
 const filterStatus = ref('available')
@@ -75,7 +76,7 @@ const filteredItems = computed(() => {
   return list
 })
 
-// â”€â”€ ADD FOOD ITEM MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ADD FOOD ITEM MODAL ───────────────────────────────────
 const showAddModal = ref(false)
 const newItem = ref(createEmptyItem())
 const addError = ref('')
@@ -126,7 +127,7 @@ async function submitAddItem() {
   }
 }
 
-// â”€â”€ EDIT ITEM MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EDIT ITEM MODAL ───────────────────────────────────────
 const showEditModal = ref(false)
 const editItem = ref(null)
 const editError = ref('')
@@ -156,7 +157,7 @@ async function submitEditItem() {
   }
 }
 
-// â”€â”€ CONFIRM MODAL LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CONFIRM MODAL LOGIC ───────────────────────────────────
 const showConfirmModal = ref(false)
 const confirmData = ref({
   title: '', message: '', confirmText: '', cancelText: 'Cancel', onConfirm: null, isDanger: false
@@ -177,7 +178,7 @@ function executeConfirm() {
   closeConfirmModal()
 }
 
-// â”€â”€ MARK AS USED â”€â”€
+// ── MARK AS USED ──
 function markAsUsed(item) {
   openConfirmModal({
     title: 'Mark as Used',
@@ -192,7 +193,7 @@ function markAsUsed(item) {
   })
 }
 
-// â”€â”€ DELETE ITEM â”€â”€
+// ── DELETE ITEM ──
 function deleteItem(item) {
   if (item.status === 'reserved') {
     openConfirmModal({
@@ -216,7 +217,7 @@ function deleteItem(item) {
   })
 }
 
-// â”€â”€ DONATE MODAL â”€â”€
+// ── DONATE MODAL ──
 const showDonateModal = ref(false)
 const donateTarget = ref(null)
 const donateForm = ref({ location: '', availability: '' })
@@ -259,7 +260,7 @@ async function submitDonate() {
   }
 }
 
-// â”€â”€ CATEGORY ICON HELPER â”€â”€
+// ── CATEGORY ICON HELPER ──
 function categoryIcon(category) {
   const map = {
     Vegetables: 'ðŸ¥¬', Dairy: 'ðŸ¥›', Canned: 'ðŸ¥«', Frozen: 'ðŸ§Š',
@@ -280,8 +281,14 @@ function canAddToMealPlan(item) {
   return item.status === 'available' && daysUntilExpiry(item.expiryDate) >= 0
 }
 
-function goToMealPlan(item) {
-  showToast(`Navigate to Meal Planner to use "${item.name}" in your meals.`, 'success')
+async function goToMealPlan(item) {
+  try {
+    await apiReserveItem(item.id)
+    showToast(`"${item.name}" added to Meal Planner and reserved!`, 'success')
+  } catch (err) {
+    showToast(`Failed to reserve "${item.name}": ${err.message}`, 'warning')
+    return
+  }
   router.push({ name: 'meal-planner' })
 }
 </script>
@@ -357,7 +364,7 @@ function goToMealPlan(item) {
 
       <!-- Empty state (NFR-US-4 / FR-4.5) -->
       <div v-if="filteredItems.length === 0" class="empty-state">
-        <div class="empty-icon">ðŸ¥¡</div>
+        <div class="empty-icon">🥑</div>
         <p>No items found. Try adjusting your filters or add a new food item!</p>
         <button class="btn-primary" @click="openAddModal">+ Add Food Item</button>
       </div>
@@ -384,7 +391,7 @@ function goToMealPlan(item) {
 
             <div class="card-meta-list">
               <div class="card-meta-row">
-                <span class="meta-icon">ðŸ“¦</span>
+                <span class="meta-icon">📦</span>
                 <span class="meta-text">{{ item.quantity }} {{ item.unit }}</span>
               </div>
               <div v-if="item.storageLocation" class="card-meta-row">
@@ -392,7 +399,7 @@ function goToMealPlan(item) {
                 <span class="meta-text">{{ item.storageLocation }}</span>
               </div>
               <div class="card-meta-row">
-                <span class="meta-icon">ðŸ“…</span>
+                <span class="meta-icon">📅</span>
                 <span class="meta-text" v-if="item.status === 'used'">Status: Consumed</span>
                 <span class="meta-text" v-else>Expires {{ item.expiryDate }}</span>
               </div>
@@ -419,7 +426,7 @@ function goToMealPlan(item) {
               <button class="btn-action delete" @click="deleteItem(item)" title="Delete">Delete</button>
             </div>
             <p v-if="item.status !== 'used' && !canDonate(item)" class="donate-hint">
-              Donate unlocks when â‰¤ 7 days to expiry
+              Donate unlocks when ≤ 7 days to expiry
             </p>
           </div>
         </div>
@@ -439,12 +446,12 @@ function goToMealPlan(item) {
           <div class="modal" role="dialog" aria-labelledby="modal-add-title">
 
             <div class="modal-header">
-              <h3 id="modal-add-title">âž• Add Food Item</h3>
-              <button class="modal-close" @click="closeAddModal" aria-label="Close">âœ•</button>
+              <h3 id="modal-add-title">➕ Add Food Item</h3>
+              <button class="modal-close" @click="closeAddModal" aria-label="Close">✕</button>
             </div>
 
             <!-- Validation Error Banner -->
-            <div v-if="addError" class="error-msg">â›” {{ addError }}</div>
+            <div v-if="addError" class="error-msg">⛔ {{ addError }}</div>
 
             <div class="modal-body">
               <!-- Food Name (required) -->
@@ -525,10 +532,10 @@ function goToMealPlan(item) {
 
             <div class="modal-header">
               <h3 id="modal-edit-title">âœï¸ Edit Food Item</h3>
-              <button class="modal-close" @click="closeEditModal" aria-label="Close">âœ•</button>
+              <button class="modal-close" @click="closeEditModal" aria-label="Close">✕</button>
             </div>
 
-            <div v-if="editError" class="error-msg">â›” {{ editError }}</div>
+            <div v-if="editError" class="error-msg">⛔ {{ editError }}</div>
 
             <div class="modal-body">
               <div class="form-group">
@@ -600,16 +607,16 @@ function goToMealPlan(item) {
 
             <div class="modal-header">
               <h3 id="modal-donate-title">ðŸ¤ Donate Food Item</h3>
-              <button class="modal-close" @click="closeDonateModal" aria-label="Close">âœ•</button>
+              <button class="modal-close" @click="closeDonateModal" aria-label="Close">✕</button>
             </div>
 
             <!-- Preview of which item is being donated -->
             <div class="donate-preview">
               Donating: <strong>{{ donateTarget.name }}</strong>
-              ({{ donateTarget.quantity }}{{ donateTarget.unit }} Â· Expires {{ donateTarget.expiryDate }})
+              ({{ donateTarget.quantity }}{{ donateTarget.unit }} · Expires {{ donateTarget.expiryDate }})
             </div>
 
-            <div v-if="donateError" class="error-msg">â›” {{ donateError }}</div>
+            <div v-if="donateError" class="error-msg">⛔ {{ donateError }}</div>
 
             <div class="modal-body">
               <!-- Pickup Location (required) -->
@@ -623,7 +630,7 @@ function goToMealPlan(item) {
               <div class="form-group">
                 <label for="donate-avail">Pickup Availability <span class="required">*</span></label>
                 <input id="donate-avail" v-model="donateForm.availability" type="text"
-                  placeholder="e.g. Weekdays 3PM â€“ 7PM" class="form-input" />
+                  placeholder="e.g. Weekdays 3PM – 7PM" class="form-input" />
               </div>
             </div>
 
@@ -646,7 +653,7 @@ function goToMealPlan(item) {
           <div class="modal" role="dialog" aria-labelledby="modal-confirm-title">
             <div class="modal-header">
               <h3 id="modal-confirm-title">{{ confirmData.title }}</h3>
-              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">âœ•</button>
+              <button class="modal-close" @click="closeConfirmModal" aria-label="Close">✕</button>
             </div>
             <div class="modal-body">
               <p style="font-size: 0.9rem; color: #3a4a3a; line-height: 1.5; margin: 0;">{{ confirmData.message }}</p>
@@ -663,11 +670,12 @@ function goToMealPlan(item) {
       </Transition>
     </Teleport>
 
+
   </AppLayout>
 </template>
 
 <style scoped>
-/* â”€â”€ Page wrapper â”€â”€ */
+/* ── Page wrapper ── */
 .inventory-page {
   padding: 1.75rem 1.5rem;
   max-width: 1100px;
@@ -678,7 +686,7 @@ function goToMealPlan(item) {
   font-family: 'Inter', sans-serif;
 }
 
-/* â”€â”€ Page Header â”€â”€ */
+/* ── Page Header ── */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -708,7 +716,7 @@ function goToMealPlan(item) {
   font-weight: 500;
 }
 
-/* â”€â”€ Summary Cards Row â”€â”€ */
+/* ── Summary Cards Row ── */
 .cards-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -760,7 +768,7 @@ function goToMealPlan(item) {
   font-weight: 500;
 }
 
-/* â”€â”€ Controls Bar â”€â”€ */
+/* ── Controls Bar ── */
 .controls-bar {
   display: flex;
   gap: 0.875rem;
@@ -808,7 +816,7 @@ function goToMealPlan(item) {
   background: #fff;
 }
 
-/* â”€â”€ Panel Head â”€â”€ */
+/* ── Panel Head ── */
 .panel-head {
   display: flex;
   align-items: center;
@@ -832,7 +840,7 @@ function goToMealPlan(item) {
   font-weight: 500;
 }
 
-/* â”€â”€ Empty State â”€â”€ */
+/* ── Empty State ── */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -855,7 +863,7 @@ function goToMealPlan(item) {
   line-height: 1.5;
 }
 
-/* â”€â”€ Food cards grid â”€â”€ */
+/* ── Food cards grid ── */
 .food-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1036,7 +1044,6 @@ function goToMealPlan(item) {
   color: #ef4444;
 }
 
-/* â”€â”€ Primary & Secondary Buttons â”€â”€ */
 .btn-primary {
   background: linear-gradient(135deg, #2da12b, #22c55e);
   color: #fff;
@@ -1148,7 +1155,7 @@ function goToMealPlan(item) {
   outline-offset: 3px;
 }
 
-/* â”€â”€ Modal Overlay â”€â”€ */
+/* ── Modal Overlay ── */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1162,7 +1169,7 @@ function goToMealPlan(item) {
   padding: 1rem;
 }
 
-/* â”€â”€ Modal Box â”€â”€ */
+/* ── Modal Box ── */
 .modal {
   background: #fff;
   border-radius: 20px;
@@ -1231,7 +1238,7 @@ function goToMealPlan(item) {
   border-top: 1px solid #f0f4f0;
 }
 
-/* â”€â”€ Donate Preview Box â”€â”€ */
+/* ── Donate Preview Box ── */
 .donate-preview {
   margin: 0 1.25rem;
   padding: 10px 14px;
@@ -1244,7 +1251,7 @@ function goToMealPlan(item) {
   line-height: 1.5;
 }
 
-/* â”€â”€ Form Elements â”€â”€ */
+/* ── Form Elements ── */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -1297,7 +1304,7 @@ label {
   background: #fff;
 }
 
-/* â”€â”€ Radio Group for Storage Location â”€â”€ */
+/* ── Radio Group for Storage Location ── */
 .radio-group {
   display: flex;
   gap: 1.25rem;
@@ -1322,7 +1329,7 @@ label {
   cursor: pointer;
 }
 
-/* â”€â”€ Validation Error Banner â”€â”€ */
+/* ── Validation Error Banner ── */
 .error-msg {
   margin: 0.5rem 1.25rem 0;
   padding: 9px 13px;
@@ -1334,7 +1341,7 @@ label {
   font-weight: 600;
 }
 
-/* â”€â”€ Vue Transition: Modal Fade â”€â”€ */
+/* ── Vue Transition: Modal Fade ── */
 .fade-enter-active {
   transition: opacity 200ms ease;
 }
@@ -1348,7 +1355,7 @@ label {
   opacity: 0;
 }
 
-/* â”€â”€ MOBILE RESPONSIVE â”€â”€ */
+/* ── MOBILE RESPONSIVE ── */
 @media (max-width: 860px) {
   .inventory-page {
     padding: 1rem;
@@ -1397,4 +1404,5 @@ label {
     grid-template-columns: 1fr;
   }
 }
+
 </style>

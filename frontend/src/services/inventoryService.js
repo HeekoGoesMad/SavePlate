@@ -146,3 +146,41 @@ export async function donateItem(id) {
     }
   }
 }
+
+export async function reserveItem(id) {
+  const response = await fetch(`${API_URL}/${id}/status`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+    body: JSON.stringify({ status: 'reserved' }),
+  })
+  if (!response.ok) throw new Error('Failed to reserve item')
+  const updated = await response.json()
+  const idx = items.value.findIndex(i => (i.id || i._id) === id)
+  if (idx !== -1) {
+    items.value[idx] = {
+      ...updated,
+      id: updated._id,
+      expiryDate: updated.expiryDate ? updated.expiryDate.split('T')[0] : '',
+    }
+  }
+  return updated
+}
+
+export async function unreserveItem(id) {
+  const response = await fetch(`${API_URL}/${id}/status`, {
+    method: 'PATCH',
+    headers: authService.authHeaders(),
+    body: JSON.stringify({ status: 'available' }),
+  })
+  if (!response.ok) throw new Error('Failed to unreserve item')
+  const updated = await response.json()
+  const idx = items.value.findIndex(i => (i.id || i._id) === id)
+  if (idx !== -1) {
+    items.value[idx] = {
+      ...updated,
+      id: updated._id,
+      expiryDate: updated.expiryDate ? updated.expiryDate.split('T')[0] : '',
+    }
+  }
+  return updated
+}

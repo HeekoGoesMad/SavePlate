@@ -12,7 +12,7 @@ const { showToast } = useToast()
 const { unreadCount } = useNotifications()
 
 const userName = computed(() => authService.user.value?.name || 'User')
-const profile = computed(() => authService.user.value || {})
+const profile  = computed(() => authService.user.value || {})
 
 // ── Account Information ──
 const userEmail = computed(() => authService.user.value?.email || '')
@@ -28,26 +28,20 @@ function startEdit() {
 async function saveEdit() {
   try {
     await authService.updateProfile(editName.value, editEmail.value)
-    editMode.value  = false
+    editMode.value = false
     showToast('Profile updated successfully', 'success', '👤')
   } catch (err) {
     showToast(err.message || 'Failed to update profile', 'warning')
   }
 }
-function cancelEdit() {
-  editMode.value = false
-}
+function cancelEdit() { editMode.value = false }
 
 // ── Security Settings ──
 const twoFactorEnabled = ref(false)
 
 async function saveProfileSettings(patch, successMessage, successType = 'success') {
   try {
-    await authService.updateProfile({
-      name: userName.value,
-      email: userEmail.value,
-      ...patch,
-    })
+    await authService.updateProfile({ name: userName.value, email: userEmail.value, ...patch })
     showToast(successMessage, successType)
   } catch (err) {
     showToast(err.message || 'Failed to save settings', 'warning')
@@ -60,25 +54,18 @@ async function toggle2FA() {
   twoFactorEnabled.value = next
   await saveProfileSettings(
     { is2FAEnabled: next },
-    next ? '2FA enabled — your account is more secure' : '2FA disabled',
+    next ? '2FA enabled — login will require an email code' : '2FA disabled',
     next ? 'success' : 'warning'
   )
 }
 
-// ── Visibility Settings ── (FR-1.4)
-const donationVisibility = ref('public')  // 'public' | 'community' | 'private'
-const showFullName = ref(true)
-const showLocation = ref(true)
 
-const visibilityOptions = ref([
-  { id: 'public-profile',   label: 'Public Profile',           desc: 'Let others find your profile',               enabled: true  },
-  { id: 'show-activity',    label: 'Show Recent Activity',     desc: "Share what you've been saving lately",        enabled: true  },
-])
+// ── Visibility Settings ── (FR-1.4) — Public / Private only
+const donationVisibility = ref('public')
 
 const donationVisibilityOptions = [
-  { value: 'public',    label: 'Public',          desc: 'Anyone can see your donation listings' },
-  { value: 'community', label: 'Community Only',  desc: 'Only registered SavePlate users can see your listings' },
-  { value: 'private',   label: 'Private',         desc: 'Only you can see your donation listings' },
+  { value: 'public',  label: 'Public',  desc: 'Anyone can see your donation listings' },
+  { value: 'private', label: 'Private', desc: 'Only you can see your donation listings' },
 ]
 
 async function setDonationVisibility(val) {
@@ -90,77 +77,47 @@ async function setDonationVisibility(val) {
   )
 }
 
-function toggleVisibility(opt) {
-  opt.enabled = !opt.enabled
-  showToast(`${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`, opt.enabled ? 'info' : 'warning', '👁️')
-}
+// ── Change Password ──
+const showChangePw  = ref(false)
+const currentPw     = ref('')
+const newPw         = ref('')
+const confirmPw     = ref('')
+const pwLoading     = ref(false)
+const pwError       = ref('')
+const showCurrentPw = ref(false)
+const showNewPw     = ref(false)
+const showConfirmPw = ref(false)
 
-// ── Notification Settings ──
-const notifOptions = ref([
-  { id: 'expiry-alerts',    label: 'Expiry Alerts',            desc: 'Get notified when items are about to expire', enabled: true  },
-  { id: 'donation-updates', label: 'Donation Updates',         desc: 'Updates on your donation activity',           enabled: true  },
-  { id: 'meal-reminders',   label: 'Meal Plan Reminders',      desc: "Reminders so you don't miss planned meals",   enabled: false },
-  { id: 'newsletter',       label: 'SavePlate Newsletter',     desc: 'Weekly tips on reducing food waste',          enabled: false },
-])
+function openChangePw()  { showChangePw.value = true; pwError.value = ''; currentPw.value = ''; newPw.value = ''; confirmPw.value = '' }
+function closeChangePw() { showChangePw.value = false }
 
-async function toggleNotif(opt) {
-  opt.enabled = !opt.enabled
-  const fieldMap = {
-    'expiry-alerts': 'expiryAlerts',
-    'donation-updates': 'donationUpdates',
-    'meal-reminders': 'mealReminders',
+async function submitChangePw() {
+  pwError.value = ''
+  if (!currentPw.value || !newPw.value || !confirmPw.value) { pwError.value = 'All fields are required.'; return }
+  if (newPw.value !== confirmPw.value) { pwError.value = 'New passwords do not match.'; return }
+  if (newPw.value.length < 8 || !/[A-Z]/.test(newPw.value) || !/\d/.test(newPw.value)) {
+    pwError.value = 'Password must be at least 8 characters, include one uppercase letter and one number.'; return
   }
-  const field = fieldMap[opt.id]
-  if (field) {
-    await saveProfileSettings(
-      { [field]: opt.enabled },
-      `${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`,
-      opt.enabled ? 'notification' : 'warning'
-    )
-  } else {
-    showToast(`${opt.label} ${opt.enabled ? 'enabled' : 'disabled'}`, opt.enabled ? 'notification' : 'warning')
+  pwLoading.value = true
+  try {
+    await authService.changePassword(currentPw.value, newPw.value)
+    closeChangePw()
+    showToast('Password changed successfully', 'success', '🔐')
+  } catch (err) {
+    pwError.value = err.message || 'Failed to change password.'
+  } finally {
+    pwLoading.value = false
   }
 }
 
 function syncProfileSettings() {
   twoFactorEnabled.value = Boolean(profile.value.is2FAEnabled)
-  donationVisibility.value = profile.value.listingVisibility || 'community'
-  showFullName.value = profile.value.showFullName !== false
-  showLocation.value = profile.value.showLocation !== false
-  notifOptions.value = notifOptions.value.map(opt => {
-    if (opt.id === 'expiry-alerts') return { ...opt, enabled: profile.value.expiryAlerts !== false }
-    if (opt.id === 'donation-updates') return { ...opt, enabled: profile.value.donationUpdates !== false }
-    if (opt.id === 'meal-reminders') return { ...opt, enabled: profile.value.mealReminders !== false }
-    return opt
-  })
-}
-
-async function toggleShowFullName() {
-  const next = !showFullName.value
-  showFullName.value = next
-  await saveProfileSettings(
-    { showFullName: next },
-    `Full name ${next ? 'shown' : 'hidden'} on listings`,
-    next ? 'info' : 'warning'
-  )
-}
-
-async function toggleShowLocation() {
-  const next = !showLocation.value
-  showLocation.value = next
-  await saveProfileSettings(
-    { showLocation: next },
-    `Location ${next ? 'shown' : 'hidden'} on listings`,
-    next ? 'info' : 'warning'
-  )
+  const vis = profile.value.listingVisibility
+  donationVisibility.value = (vis === 'public' || vis === 'private') ? vis : 'public'
 }
 
 onMounted(async () => {
-  try {
-    await authService.getProfile()
-  } catch {
-    // The layout-level auth guard handles expired sessions; keep settings usable with cached state.
-  }
+  try { await authService.getProfile() } catch { /* layout auth guard handles this */ }
   syncProfileSettings()
 })
 
@@ -266,7 +223,7 @@ function doLogout() {
               <span class="toggle-label">Change Password</span>
               <span class="toggle-desc">Update your account password</span>
             </div>
-            <button class="btn-ghost">Change →</button>
+            <button class="btn-ghost" @click="openChangePw">Change →</button>
           </div>
         </div>
       </section>
@@ -300,7 +257,6 @@ function doLogout() {
             >
               <span class="vis-icon">
                 <span v-if="opt.value === 'public'">🌐</span>
-                <span v-else-if="opt.value === 'community'">👥</span>
                 <span v-else>🔒</span>
               </span>
               <span class="vis-details">
@@ -311,109 +267,8 @@ function doLogout() {
             </button>
           </div>
         </div>
-
-        <div class="info-divider" style="margin: 1rem 0"></div>
-
-        <!-- Profile Visibility Toggles -->
-        <div class="privacy-section">
-          <div class="privacy-section-header">
-            <span class="privacy-section-title">Profile Visibility</span>
-            <span class="privacy-section-desc">Control what information is shown on your public profile.</span>
-          </div>
-          <div class="toggle-list">
-            <!-- Show Full Name toggle -->
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <span class="toggle-label">Show Full Name</span>
-                <span class="toggle-desc">Display your full name on donation listings and profile</span>
-              </div>
-              <button
-                id="toggle-show-full-name"
-                class="toggle-switch"
-                :class="{ on: showFullName }"
-                @click="toggleShowFullName"
-                :aria-checked="showFullName"
-                role="switch"
-                aria-label="Toggle full name visibility"
-              >
-                <span class="toggle-thumb"></span>
-              </button>
-            </div>
-            <div class="info-divider"></div>
-            <!-- Show Location toggle -->
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <span class="toggle-label">Show Location</span>
-                <span class="toggle-desc">Display your general location on donation listings</span>
-              </div>
-              <button
-                id="toggle-show-location"
-                class="toggle-switch"
-                :class="{ on: showLocation }"
-                @click="toggleShowLocation"
-                :aria-checked="showLocation"
-                role="switch"
-                aria-label="Toggle location visibility"
-              >
-                <span class="toggle-thumb"></span>
-              </button>
-            </div>
-            <div v-for="(opt, i) in visibilityOptions" :key="opt.id">
-              <div class="info-divider"></div>
-              <div class="toggle-item">
-                <div class="toggle-info">
-                  <span class="toggle-label">{{ opt.label }}</span>
-                  <span class="toggle-desc">{{ opt.desc }}</span>
-                </div>
-                <button
-                  class="toggle-switch"
-                  :class="{ on: opt.enabled }"
-                  @click="toggleVisibility(opt)"
-                  :aria-checked="opt.enabled"
-                  role="switch"
-                  :aria-label="`Toggle ${opt.label}`"
-                >
-                  <span class="toggle-thumb"></span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
 
-      <!-- ══════════════════════════════════════
-           4. Notification Settings
-      ══════════════════════════════════════ -->
-      <section class="settings-card">
-        <div class="card-header no-action">
-          <div class="card-title-row">
-            <span class="card-icon-wrap" style="--ic-bg:#fce7f3;--ic-color:#db2777;">🔔</span>
-            <h2>Notification Settings</h2>
-          </div>
-        </div>
-
-        <div class="toggle-list">
-          <div v-for="(opt, i) in notifOptions" :key="opt.id">
-            <div class="info-divider" v-if="i > 0"></div>
-            <div class="toggle-item">
-              <div class="toggle-info">
-                <span class="toggle-label">{{ opt.label }}</span>
-                <span class="toggle-desc">{{ opt.desc }}</span>
-              </div>
-              <button
-                class="toggle-switch"
-                :class="{ on: opt.enabled }"
-                @click="toggleNotif(opt)"
-                :aria-checked="opt.enabled"
-                role="switch"
-                :aria-label="`Toggle ${opt.label}`"
-              >
-                <span class="toggle-thumb"></span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- ══════════════════════════════════════
            5. About SavePlate
@@ -469,6 +324,77 @@ function doLogout() {
             <div class="modal-actions">
               <button class="btn-cancel" @click="cancelLogout">Cancel</button>
               <button class="btn-logout-confirm" @click="doLogout">Log Out</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- ── Change Password Modal ── -->
+      <Transition name="modal">
+        <div v-if="showChangePw" class="modal-backdrop" @click.self="closeChangePw">
+          <div class="modal-card" style="max-width:420px;text-align:left;">
+            <div class="modal-icon" style="text-align:center">🔐</div>
+            <h3 class="modal-title" style="text-align:center">Change Password</h3>
+
+            <div class="pw-field">
+              <label>Current Password</label>
+              <div class="password-wrap">
+                <input :type="showCurrentPw ? 'text' : 'password'" v-model="currentPw" placeholder="Enter current password" class="form-input" />
+                <button type="button" class="pw-eye" @click="showCurrentPw = !showCurrentPw" :aria-label="showCurrentPw ? 'Hide password' : 'Show password'">
+                  <svg v-if="!showCurrentPw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="pw-field">
+              <label>New Password</label>
+              <div class="password-wrap">
+                <input :type="showNewPw ? 'text' : 'password'" v-model="newPw" placeholder="Min 8 chars, 1 uppercase, 1 number" class="form-input" />
+                <button type="button" class="pw-eye" @click="showNewPw = !showNewPw" :aria-label="showNewPw ? 'Hide password' : 'Show password'">
+                  <svg v-if="!showNewPw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="pw-field">
+              <label>Confirm New Password</label>
+              <div class="password-wrap">
+                <input :type="showConfirmPw ? 'text' : 'password'" v-model="confirmPw" placeholder="Re-enter new password" class="form-input" />
+                <button type="button" class="pw-eye" @click="showConfirmPw = !showConfirmPw" :aria-label="showConfirmPw ? 'Hide password' : 'Show password'">
+                  <svg v-if="!showConfirmPw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <p v-if="pwError" class="pw-error">{{ pwError }}</p>
+
+            <div class="modal-actions" style="margin-top:1.25rem">
+              <button class="btn-cancel" @click="closeChangePw">Cancel</button>
+              <button class="btn-save" @click="submitChangePw" :disabled="pwLoading">
+                {{ pwLoading ? 'Saving...' : 'Update Password' }}
+              </button>
             </div>
           </div>
         </div>
@@ -952,4 +878,59 @@ function doLogout() {
 .modal-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .modal-enter-from   { opacity: 0; transform: scale(0.88); }
 .modal-leave-to     { opacity: 0; transform: scale(0.92); }
+
+/* ── Change Password Modal Fields ── */
+.pw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 0.85rem;
+}
+.pw-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: -0.01em;
+}
+.password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrap .form-input {
+  width: 100%;
+  padding-right: 42px;
+}
+.pw-eye {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: color 150ms, background 150ms;
+}
+.pw-eye:hover { 
+  color: #2da12b; 
+  background: #f0fdf4;
+}
+.pw-eye:focus-visible { outline: 2px solid #2da12b; outline-offset: 1px; }
+
+.pw-eye svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.75;
+}
+.pw-error {
+  font-size: 0.8rem;
+  color: #ef4444;
+  font-weight: 500;
+  margin-top: 0.5rem;
+}
 </style>

@@ -49,6 +49,20 @@ async function loginUser(email, password) {
   if (!response.ok) {
     throw new Error(data.message || 'Login failed')
   }
+  // If 2FA required, don't set session yet – return the flag
+  if (data.requires2FA) return data
+  setSession(data.token, data.user)
+  return data
+}
+
+async function login2FA(email, otpCode) {
+  const response = await fetch(`${API_URL}/auth/login-2fa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otpCode }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || '2FA verification failed')
   setSession(data.token, data.user)
   return data
 }
@@ -125,6 +139,17 @@ async function updateProfile(nameOrPayload, email) {
   return data
 }
 
+async function changePassword(currentPassword, newPassword) {
+  const response = await fetch(`${API_URL}/auth/change-password`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to change password')
+  return data
+}
+
 function logout() {
   clearSession()
 }
@@ -135,10 +160,12 @@ export const authService = {
   isLoggedIn,
   authHeaders,
   loginUser,
+  login2FA,
   registerUser,
   sendOtp,
   verifyOtp,
   getProfile,
   updateProfile,
+  changePassword,
   logout,
 }

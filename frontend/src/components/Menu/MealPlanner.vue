@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useToast } from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
 import { useMealPlanner } from '@/composables/useMealPlanner'
-import { items, fetchItems, daysUntilExpiry } from '@/services/inventoryService'
+import {
+  items, fetchItems, daysUntilExpiry,
+  reserveItem as apiReserveItem,
+  unreserveItem as apiUnreserveItem,
+} from '@/services/inventoryService'
+import { getMealPlan, saveMealPlan, flatPlanToSlots, slotsToPlanMap } from '@/services/mealPlanService'
 
 const { showToast } = useToast()
 const { addNotification, unreadCount } = useNotifications()
@@ -38,17 +43,14 @@ const weekLabel = computed(() => {
   return `${days[0].date} – ${days[6].date}`
 })
 
+const weekStart = computed(() => weekDays.value[0].iso)
+
 const SLOTS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks']
 
-// ── Meal plan (keyed by "iso-slot") ──
-const initialPlan = JSON.stringify({
-  [`${weekDays.value[0].iso}-Breakfast`]: [{ name: 'Avocado Toast', ingredient: 'Bread, Avocado' }],
-  [`${weekDays.value[1].iso}-Lunch`]: [{ name: 'Spinach Salad', ingredient: 'Spinach' }],
-  [`${weekDays.value[2].iso}-Dinner`]: [{ name: 'Pasta Pomodoro', ingredient: 'Tomatoes, Pasta' }],
-})
-const mealPlan = ref(JSON.parse(initialPlan))
-
-const confirmedSnapshot = ref(initialPlan)
+// ── Meal plan state (keyed by "iso-slot") ──
+const mealPlan = ref({})
+const confirmedSnapshot = ref('{}')
+const planDbId = ref(null)   // MongoDB _id of current week's plan
 
 // True whenever mealPlan diverges from the last-confirmed snapshot
 const hasChanges = computed(() => JSON.stringify(mealPlan.value) !== confirmedSnapshot.value)
@@ -57,20 +59,49 @@ function getMeals(dayIso, slot) {
   return mealPlan.value[`${dayIso}-${slot}`] || []
 }
 
-// ── Inventory panel (sorted by expiry urgency) ──
-const inventory = computed(() => {
-  return items.value
-    .filter(i => i.status === 'available')
+// ── Load plan from backend when week changes ──
+async function loadPlan() {
+  try {
+    const plan = await getMealPlan(weekStart.value)
+    mealPlan.value = slotsToPlanMap(plan.slots)
+    planDbId.value = plan._id || null
+    confirmedSnapshot.value = JSON.stringify(mealPlan.value)
+  } catch {
+    mealPlan.value = {}
+    planDbId.value = null
+    confirmedSnapshot.value = '{}'
+  }
+}
+
+// Reload whenever the user navigates weeks
+watch(weekOffset, loadPlan)
+
+// ── Track which ingredient names are placed in any meal slot this week ──
+const scheduledIngredients = computed(() => {
+  const names = new Set()
+  Object.values(mealPlan.value).flat().forEach(meal => {
+    if (meal.ingredient) {
+      meal.ingredient.split(',').map(s => s.trim().toLowerCase()).forEach(n => names.add(n))
+    }
+  })
+  return names
+})
+
+// ── Inventory sidebar: only items explicitly added from Inventory page (status = reserved) ──
+const inventory = computed(() =>
+  items.value
+    .filter(i => i.status === 'reserved')
     .map(i => ({
       id: i.id,
       name: i.name,
       qty: `${i.quantity} ${i.unit}`,
       daysLeft: daysUntilExpiry(i.expiryDate),
       category: i.category,
-      isReserved: false // Handle reservation logic if needed
+      // isScheduled = item is currently placed in at least one meal slot
+      isScheduled: scheduledIngredients.value.has(i.name.toLowerCase()),
     }))
     .sort((a, b) => a.daysLeft - b.daysLeft)
-})
+)
 
 // ── Add meal modal ──
 const modalOpen = ref(false)
@@ -126,59 +157,93 @@ function addRecipe(rec) {
   closeModal()
 }
 
-function addInventoryToDay(item) {
-  // Quick-add to today’s first empty slot
+// ── Inventory item → Meal Plan picker modal ──
+const invPickerOpen    = ref(false)
+const invPickerItem    = ref(null)
+const invPickerDay     = ref('')
+const invPickerSlot    = ref('Lunch')
+const invPickerLoading = ref(false)
+
+function openInvPicker(item) {
+  invPickerItem.value = item
   const today = weekDays.value.find(d => d.isToday) || weekDays.value[0]
-  const emptySlot = SLOTS.find(s => getMeals(today.iso, s).length === 0)
-  if (!emptySlot) {
-    showToast('All meal slots for today are already filled.', 'warning')
-    return
-  }
-  const key = `${today.iso}-${emptySlot}`
+  invPickerDay.value  = today.iso
+  invPickerSlot.value = 'Lunch'
+  invPickerOpen.value = true
+}
+
+function closeInvPicker() {
+  invPickerOpen.value = false
+  invPickerItem.value = null
+}
+
+async function confirmInvPicker() {
+  const item = invPickerItem.value
+  if (!item || !invPickerDay.value || !invPickerSlot.value) return
+  invPickerLoading.value = true
+  const key = `${invPickerDay.value}-${invPickerSlot.value}`
   if (!mealPlan.value[key]) mealPlan.value[key] = []
   mealPlan.value[key].push({ name: `Meal with ${item.name}`, ingredient: item.name })
-  showToast(`${item.name} quick-added to today’s ${emptySlot}`, 'success')
-}
 
-function removeMeal(dayIso, slot, idx) {
-  const key = `${dayIso}-${slot}`
-  if (mealPlan.value[key]) {
-    const removed = mealPlan.value[key][idx]
-    mealPlan.value[key].splice(idx, 1)
-    showToast(`Removed "${removed?.name ?? 'meal'}" from ${slot}`, 'warning')
+  try {
+    // Save meal plan — item is already reserved, no need to call reserveItem again
+    await saveMealPlan(weekStart.value, flatPlanToSlots(mealPlan.value), false)
+    const dayLabel = weekDays.value.find(d => d.iso === invPickerDay.value)
+    showToast(`"${item.name}" scheduled to ${invPickerSlot.value} on ${dayLabel?.date || invPickerDay.value}`, 'success')
+  } catch {
+    showToast(`"${item.name}" added — confirm plan to sync`, 'warning')
+  } finally {
+    invPickerLoading.value = false
+    closeInvPicker()
   }
 }
 
-// UC6-M3: Confirm plan — save snapshot + reserve inventory + schedule notification
-function confirmPlan() {
-  confirmedSnapshot.value = JSON.stringify(mealPlan.value)
 
-  // UC6 Gap 1: Simulate inventory reservation
-  // Collect all ingredient strings from planned meals this week
-  const allIngredients = Object.values(mealPlan.value)
-    .flat()
-    .map(meal => meal.ingredient)
-    .join(', ')
-    .toLowerCase()
+// ✕ pressed on calendar meal → remove from plan, item stays in panel (status stays reserved → shows + again)
+async function removeMeal(dayIso, slot, idx) {
+  const key = `${dayIso}-${slot}`
+  if (!mealPlan.value[key]) return
+  const removed = mealPlan.value[key][idx]
+  mealPlan.value[key].splice(idx, 1)
+  showToast(`Removed "${removed?.name ?? 'meal'}" from ${slot}`, 'warning')
 
-  let reservedCount = 0
-  inventory.value.forEach(item => {
-    if (allIngredients.includes(item.name.toLowerCase())) {
-      item.isReserved = true
-      reservedCount++
-    }
-  })
+  // Persist the updated plan to backend
+  // NOTE: We do NOT unreserve the item — it stays in the Meal Planner Inventory
+  // panel with its + button restored (isScheduled becomes false)
+  try {
+    await saveMealPlan(weekStart.value, flatPlanToSlots(mealPlan.value), false)
+  } catch { /* non-critical */ }
+}
 
-  // UC6 Gap 2: Schedule post-confirm notification (meal reminder)
-  addNotification(
-    'meal',
-    `Your meal plan for ${weekLabel.value} has been confirmed. Daily reminders have been scheduled.`,
-    'meal-planner'
-  )
+// × on inventory panel item → fully release back to Inventory (unreserve)
+async function removeFromPanel(item) {
+  try {
+    await apiUnreserveItem(item.id)
+    showToast(`"${item.name}" returned to Inventory`, 'success')
+  } catch (err) {
+    showToast(`Failed to release "${item.name}"`, 'warning')
+  }
+}
 
-  // Toast confirmation
-  const reservedMsg = reservedCount > 0 ? ` ${reservedCount} ingredient(s) reserved.` : ''
-  showToast(`Meal plan confirmed!  ${reservedMsg.trim()}`, 'success', '✅')
+// UC6-M3: Confirm plan — save to backend + reserve inventory + notify
+async function confirmPlan() {
+  try {
+    const slots = flatPlanToSlots(mealPlan.value)
+    await saveMealPlan(weekStart.value, slots, true)
+    confirmedSnapshot.value = JSON.stringify(mealPlan.value)
+
+    addNotification(
+      'meal',
+      `Your meal plan for ${weekLabel.value} has been confirmed. Daily reminders have been scheduled.`,
+      'meal-planner'
+    )
+
+    showToast('Meal plan confirmed and ingredients reserved!', 'success', '✅')
+    // Refresh inventory to reflect reserved status from backend
+    await fetchItems()
+  } catch (err) {
+    showToast(err.message || 'Failed to confirm plan.', 'warning')
+  }
 }
 
 // ── US-M4: Proactive expiry suggestion (once per session) ──
@@ -186,6 +251,7 @@ onMounted(async () => {
   if (items.value.length === 0) {
     await fetchItems()
   }
+  await loadPlan()
 
   const SESSION_KEY = 'saveplate_expiry_suggestions_shown'
   if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY)) return
@@ -299,28 +365,47 @@ onMounted(async () => {
         <!-- Inventory sidebar -->
         <div class="inventory-panel">
           <div class="inv-head">
-            <h2>🥦 Available Inventory</h2>
-            <span class="inv-hint">Sorted by expiry</span>
+            <h2>🥦 Meal Planner Inventory</h2>
+            <span class="inv-hint">Items added from Inventory</span>
           </div>
-          <div class="inv-list">
-            <div v-for="item in inventory" :key="item.id" class="inv-row" :class="{ 'inv-reserved': item.isReserved }">
+
+          <!-- Empty state -->
+          <div v-if="inventory.length === 0" class="inv-empty">
+            <div class="inv-empty-icon">📦</div>
+            <p class="inv-empty-title">No items yet</p>
+            <p class="inv-empty-sub">Go to <strong>Inventory</strong> and click <strong>"Add to Meal Plan"</strong> on an item to add it here.</p>
+          </div>
+
+          <!-- Reserved items list -->
+          <div v-else class="inv-list">
+            <div v-for="item in inventory" :key="item.id"
+              class="inv-row"
+              :class="item.isScheduled ? 'inv-scheduled' : 'inv-pending'">
               <div class="inv-info">
                 <span class="inv-name">{{ item.name }}</span>
                 <span class="inv-meta">{{ item.category }} · {{ item.qty }}</span>
               </div>
               <div class="inv-right">
-                <span v-if="item.isReserved" class="reserved-chip">🔒 Reserved</span>
-                <span v-else class="exp-chip"
+                <span class="exp-chip"
                   :style="{ background: urgencyColor(item.daysLeft).bg, color: urgencyColor(item.daysLeft).color }">
                   {{ item.daysLeft }}d
                 </span>
-                <button class="inv-add-btn" @click="addInventoryToDay(item)" :disabled="item.isReserved"
-                  :title="item.isReserved ? 'Reserved for meal plan' : 'Quick-add to today'">＋</button>
-
+                <!-- Scheduled → Reserved badge, no × (use ✕ on calendar to unschedule) -->
+                <span v-if="item.isScheduled" class="reserved-chip">🔒 Reserved</span>
+                <!-- Not scheduled → + to pick day & slot + × to release back to Inventory -->
+                <template v-else>
+                  <button class="inv-add-btn" @click="openInvPicker(item)"
+                    title="Schedule to a day &amp; slot">＋</button>
+                  <button class="inv-remove-btn" @click="removeFromPanel(item)"
+                    :title="`Return '${item.name}' to Inventory`">×</button>
+                </template>
               </div>
             </div>
           </div>
-          <p class="inv-tip">💡 Items with fewer days left are shown first. Tap ＋ to quick-add to today.</p>
+
+          <p v-if="inventory.length > 0" class="inv-tip">
+            💡 Tap ＋ to schedule · ✕ on a calendar meal to unschedule · × on an item to return it to Inventory.
+          </p>
         </div>
 
       </div>
@@ -382,7 +467,56 @@ onMounted(async () => {
       </div>
     </Teleport>
 
-    <!-- ── Floating Confirm FAB (bottom-right, shown only when changes exist) ── -->
+    <!-- ── Inventory → Meal Plan Picker Modal ── -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="invPickerOpen && invPickerItem" class="modal-overlay" @click.self="closeInvPicker">
+          <div class="modal-card inv-picker-card">
+            <div class="modal-head">
+              <div>
+                <h2>📅 Add to Plan</h2>
+                <p class="modal-sub">{{ invPickerItem.name }} · {{ invPickerItem.qty }}</p>
+              </div>
+              <button class="modal-close" @click="closeInvPicker">✕</button>
+            </div>
+
+            <div class="modal-body inv-picker-body">
+              <!-- Day pills -->
+              <div class="field">
+                <label>Choose a Day</label>
+                <div class="picker-days">
+                  <button v-for="d in weekDays" :key="d.iso"
+                    class="picker-day-btn" :class="{ active: invPickerDay === d.iso, today: d.isToday }"
+                    @click="invPickerDay = d.iso">
+                    <span class="pd-name">{{ d.name }}</span>
+                    <span class="pd-date">{{ d.date.split(' ')[1] }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Slot buttons -->
+              <div class="field">
+                <label>Meal Slot</label>
+                <div class="picker-slots">
+                  <button v-for="s in SLOTS" :key="s"
+                    class="picker-slot-btn" :class="{ active: invPickerSlot === s }"
+                    @click="invPickerSlot = s">{{ s }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-foot">
+              <button class="btn-cancel-picker" @click="closeInvPicker">Cancel</button>
+              <button class="btn-confirm-picker" @click="confirmInvPicker" :disabled="invPickerLoading">
+                {{ invPickerLoading ? 'Adding...' : '+ Add to Plan' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ── Floating Confirm FAB ── -->
     <Teleport to="body">
       <Transition name="fab">
         <button v-if="hasChanges" class="fab-confirm" @click="confirmPlan">
@@ -707,7 +841,7 @@ onMounted(async () => {
 
 .inv-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.5rem;
 }
 
@@ -741,6 +875,9 @@ onMounted(async () => {
 .inv-meta {
   font-size: 0.68rem;
   color: #9aaa9a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inv-right {
@@ -782,9 +919,78 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-.inv-reserved {
-  background: #faf5ff;
-  border-color: #ddd6fe;
+/* Not yet scheduled in any slot — default green tint */
+.inv-pending {
+  background: #f9fbf9;
+  border-color: #e0e8e0;
+}
+
+/* Placed in a meal slot — stronger green tint */
+.inv-scheduled {
+  background: #f0faf0;
+  border-color: #c8e6c8;
+}
+
+/* Reserved badge chip */
+.reserved-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: #dcfce7;
+  color: #15803d;
+  white-space: nowrap;
+}
+
+/* × remove-from-panel button */
+.inv-remove-btn {
+  background: none;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.inv-remove-btn:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+/* Empty state */
+.inv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.75rem 1rem;
+  gap: 0.5rem;
+}
+
+.inv-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.inv-empty-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.inv-empty-sub {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  line-height: 1.5;
 }
 
 .inv-tip {
@@ -1363,4 +1569,126 @@ onMounted(async () => {
     overflow-y: auto;
   }
 }
+
+/* ── Inventory Picker Modal ── */
+.inv-picker-card {
+  max-width: 420px;
+}
+
+.inv-picker-body {
+  padding: 1rem 1.5rem 0.5rem;
+  gap: 1.25rem;
+}
+
+.picker-days {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.picker-day-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1.5px solid #e8ede8;
+  border-radius: 10px;
+  background: #f9fbf9;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  min-width: 46px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.picker-day-btn.active {
+  border-color: #2da12b;
+  background: #f0faf0;
+}
+
+.picker-day-btn.today .pd-date {
+  color: #2da12b;
+  font-weight: 800;
+}
+
+.pd-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #7a8a7a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pd-date {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2a2a2a;
+  margin-top: 2px;
+}
+
+.picker-slots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.picker-slot-btn {
+  padding: 7px 14px;
+  border: 1.5px solid #e8ede8;
+  border-radius: 8px;
+  background: #f9fbf9;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #6b7280;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.picker-slot-btn.active {
+  border-color: #2da12b;
+  background: #f0faf0;
+  color: #2da12b;
+}
+
+.modal-foot {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+.btn-cancel-picker {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-cancel-picker:hover { background: #f3f4f6; }
+
+.btn-confirm-picker {
+  flex: 2;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #2da12b, #22c55e);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(45,161,43,0.28);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.btn-confirm-picker:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-confirm-picker:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 </style>

@@ -11,6 +11,13 @@ const showPass    = ref(false)
 const isLoading   = ref(false)
 const submitted   = ref(false)  // tracks whether user tried to submit
 
+// 2FA state
+const requires2FA  = ref(false)
+const twoFAEmail   = ref('')
+const otpCode      = ref('')
+const otpLoading   = ref(false)
+const otpError     = ref('')
+
 // ── Email regex validation ────────────────────────────────
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -33,13 +40,40 @@ const handleLogin = async () => {
   if (emailError.value || passwordError.value) return
   isLoading.value = true
   try {
-    await authService.loginUser(email.value.trim(), password.value)
-    router.push({ name: 'dashboard' })
+    const data = await authService.loginUser(email.value.trim(), password.value)
+    if (data.requires2FA) {
+      twoFAEmail.value = data.email
+      requires2FA.value = true
+    } else {
+      router.push({ name: 'dashboard' })
+    }
   } catch (err) {
     serverError.value = err.message || 'Login failed. Please try again.'
   } finally {
     isLoading.value = false
   }
+}
+
+const handleVerify2FA = async () => {
+  otpError.value = ''
+  if (!otpCode.value.trim()) { otpError.value = 'Please enter the code from your email.'; return }
+  otpLoading.value = true
+  try {
+    await authService.login2FA(twoFAEmail.value, otpCode.value.trim())
+    router.push({ name: 'dashboard' })
+  } catch (err) {
+    otpError.value = err.message || 'Invalid code. Please try again.'
+  } finally {
+    otpLoading.value = false
+  }
+}
+
+const backToLogin = () => {
+  requires2FA.value = false
+  otpCode.value = ''
+  otpError.value = ''
+  password.value = ''
+  submitted.value = false
 }
 </script>
 
@@ -59,8 +93,6 @@ const handleLogin = async () => {
           <li>📦 Track your food inventory</li>
           <li>📊 View your savings analytics</li>
         </ul>
-
-
       </div>
     </div>
 
@@ -72,69 +104,105 @@ const handleLogin = async () => {
           <img src="@/assets/Save Plate Logo.png" width="180" height="67" alt="SavePlate Logo" />
         </div>
 
-        <h2>Welcome back</h2>
-        <p class="subtitle">Login into your account to continue</p>
+        <!-- ── Normal Login Form ── -->
+        <template v-if="!requires2FA">
+          <h2>Welcome back</h2>
+          <p class="subtitle">Login into your account to continue</p>
 
-        <form @submit.prevent="handleLogin" novalidate>
+          <form @submit.prevent="handleLogin" novalidate>
 
-          <div class="field">
-            <label for="login-email">Email</label>
-            <input
-              id="login-email"
-              type="email"
-              v-model="email"
-              placeholder="your@email.com"
-              autocomplete="email"
-              :class="{ 'input-error': emailError }"
-            />
-            <p v-if="emailError" class="error-text">{{ emailError }}</p>
-          </div>
-
-          <div class="field">
-            <label for="login-password">Password</label>
-            <div class="password-wrap">
+            <div class="field">
+              <label for="login-email">Email</label>
               <input
-                id="login-password"
-                :type="showPass ? 'text' : 'password'"
-                v-model="password"
-                placeholder="Enter your password"
-                autocomplete="current-password"
-                :class="{ 'input-error': passwordError }"
+                id="login-email"
+                type="email"
+                v-model="email"
+                placeholder="your@email.com"
+                autocomplete="email"
+                :class="{ 'input-error': emailError }"
               />
-              <button type="button" class="toggle-btn" @click="showPass = !showPass" :aria-label="showPass ? 'Hide password' : 'Show password'">
-                <!-- Eye open -->
-                <svg v-if="!showPass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <!-- Eye closed -->
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
+              <p v-if="emailError" class="error-text">{{ emailError }}</p>
             </div>
-            <p v-if="passwordError" class="error-text">{{ passwordError }}</p>
-          </div>
 
-          <div class="forgot">
-            <a href="#">Forgot password?</a>
-          </div>
+            <div class="field">
+              <label for="login-password">Password</label>
+              <div class="password-wrap">
+                <input
+                  id="login-password"
+                  :type="showPass ? 'text' : 'password'"
+                  v-model="password"
+                  placeholder="Enter your password"
+                  autocomplete="current-password"
+                  :class="{ 'input-error': passwordError }"
+                />
+                <button type="button" class="toggle-btn" @click="showPass = !showPass" :aria-label="showPass ? 'Hide password' : 'Show password'">
+                  <!-- Eye open -->
+                  <svg v-if="!showPass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <!-- Eye closed -->
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+              <p v-if="passwordError" class="error-text">{{ passwordError }}</p>
+            </div>
 
-          <p v-if="serverError" class="error-text" style="text-align: center; margin-bottom: 0.75rem;">{{ serverError }}</p>
+            <div class="forgot">
+              <a href="#">Forgot password?</a>
+            </div>
 
-          <button type="submit" id="btn-login" class="btn-primary" :disabled="isLoading">
-            {{ isLoading ? 'Logging in...' : 'Login Now' }}
+            <p v-if="serverError" class="error-text" style="text-align: center; margin-bottom: 0.75rem;">{{ serverError }}</p>
+
+            <button type="submit" id="btn-login" class="btn-primary" :disabled="isLoading">
+              {{ isLoading ? 'Logging in...' : 'Login Now' }}
+            </button>
+
+          </form>
+
+          <div class="divider"><span>OR</span></div>
+
+          <button type="button" id="btn-signup" class="btn-secondary" @click="router.push({ name: 'register' })">
+            Don't have an account? <strong>Sign up</strong>
           </button>
+        </template>
 
-        </form>
+        <!-- ── 2FA OTP Step ── -->
+        <template v-else>
+          <div class="twofa-icon">🔒</div>
+          <h2>Two-Factor Verification</h2>
+          <p class="subtitle">A 6-digit code has been sent to<br/><strong>{{ twoFAEmail }}</strong></p>
 
-        <div class="divider"><span>OR</span></div>
+          <form @submit.prevent="handleVerify2FA" novalidate>
+            <div class="field">
+              <label for="otp-code">Verification Code</label>
+              <input
+                id="otp-code"
+                type="text"
+                v-model="otpCode"
+                placeholder="Enter 6-digit code"
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                :class="{ 'input-error': otpError }"
+                style="letter-spacing: 0.2em; font-size: 1.1rem; text-align: center;"
+              />
+              <p v-if="otpError" class="error-text">{{ otpError }}</p>
+            </div>
 
-        <button type="button" id="btn-signup" class="btn-secondary" @click="router.push({ name: 'register' })">
-          Don't have an account? <strong>Sign up</strong>
-        </button>
+            <button type="submit" id="btn-verify-2fa" class="btn-primary" :disabled="otpLoading">
+              {{ otpLoading ? 'Verifying...' : 'Verify & Login' }}
+            </button>
+          </form>
+
+          <button type="button" class="btn-secondary" style="margin-top: 0.75rem;" @click="backToLogin">
+            ← Back to Login
+          </button>
+        </template>
 
       </div>
     </div>
@@ -485,6 +553,13 @@ const handleLogin = async () => {
 .btn-secondary:hover {
   border-color: #cbd5e1;
   background: #f8fafc;
+}
+
+/* ── 2FA icon ── */
+.twofa-icon {
+  font-size: 2.5rem;
+  text-align: center;
+  margin-bottom: 0.75rem;
 }
 
 /* ── Responsive ── */
