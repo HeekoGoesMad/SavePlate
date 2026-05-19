@@ -1,27 +1,53 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import AppLayout from '@/components/Layout/AppLayout.vue'
 import { useNotifications } from '@/composables/useNotifications'
 import {
   infoBoxes,
   impactStats,
   chartData,
+  donutData,
+  donutGradient,
   badges,
   hasData,
+  isLoading,
   timePeriod,
   selectedCategory,
+  fetchAnalytics,
   clearData,
-  restoreData
+  restoreData,
 } from '@/services/analyticsService'
 
 const { unreadCount } = useNotifications()
 const userName = ref('Adrienne Kayana')
+
+// Tooltip state for bar chart
+const tooltip = ref({ visible: false, x: 0, y: 0, label: '', saved: 0, donated: 0 })
+
+function showTooltip(event, item) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const parentRect = event.currentTarget.closest('.bar-chart-wrap').getBoundingClientRect()
+  tooltip.value = {
+    visible: true,
+    x: rect.left - parentRect.left + rect.width / 2,
+    y: rect.top - parentRect.top,
+    label: item.label,
+    saved: item.savedValue,
+    donated: item.donatedValue,
+  }
+}
+function hideTooltip() {
+  tooltip.value.visible = false
+}
+
+onMounted(fetchAnalytics)
 </script>
 
 <template>
   <AppLayout :unread-count="unreadCount" :user-name="userName">
     <div class="analytics-page">
-      <!-- ── Header & Filters (FR-4.2) ── -->
+
+      <!-- ── Header & Filters ── -->
       <div class="page-header">
         <div class="header-text">
           <h1>Food Analytics</h1>
@@ -30,25 +56,38 @@ const userName = ref('Adrienne Kayana')
 
         <div class="header-actions">
           <!-- Filter: Category -->
-          <select v-model="selectedCategory" class="filter-select">
+          <select v-model="selectedCategory" class="filter-select" id="filter-category">
             <option value="All">All Categories</option>
             <option value="Vegetables">Vegetables</option>
-            <option value="Fruits">Fruits</option>
             <option value="Dairy">Dairy</option>
             <option value="Bakery">Bakery</option>
+            <option value="Canned">Canned</option>
+            <option value="Frozen">Frozen</option>
+            <option value="Other">Other</option>
           </select>
 
           <!-- Filter: Time Period -->
-          <select v-model="timePeriod" class="filter-select">
+          <select v-model="timePeriod" class="filter-select" id="filter-period">
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>
             <option value="all">All Time</option>
           </select>
+
+          <!-- Refresh -->
+          <button class="refresh-btn" @click="fetchAnalytics" :disabled="isLoading" title="Refresh">
+            <span :class="{ spinning: isLoading }">↻</span>
+          </button>
         </div>
       </div>
 
-      <!-- ── Empty State (FR-4.5) ── -->
-      <div v-if="!hasData" class="empty-state">
+      <!-- ── Loading State ── -->
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading analytics…</p>
+      </div>
+
+      <!-- ── Empty State ── -->
+      <div v-else-if="!hasData" class="empty-state">
         <div class="empty-icon">📊</div>
         <h2>No Data to Display</h2>
         <p>You haven't tracked any food or donations for this period. Start adding items to your inventory to see your
@@ -59,8 +98,9 @@ const userName = ref('Adrienne Kayana')
         </div>
       </div>
 
-      <!-- ── Dashboard Content (FR-4.1) ── -->
+      <!-- ── Dashboard Content ── -->
       <template v-else>
+
         <!-- ── Top Info Boxes ── -->
         <div class="info-row">
           <div v-for="(box, i) in infoBoxes" :key="i" class="summary-card"
@@ -71,54 +111,108 @@ const userName = ref('Adrienne Kayana')
               <div class="card-label">{{ box.title }}</div>
               <div class="card-unit">{{ box.desc }}</div>
             </div>
-            <!-- Trend Indicator (FR-4.3) -->
-            <div v-if="box.trend" class="trend-badge" :class="{ 'positive': box.trend.isPositive }">
+            <div v-if="box.trend" class="trend-badge" :class="{ positive: box.trend.isPositive }">
               <span class="trend-icon">{{ box.trend.isPositive ? '↑' : '↓' }}</span>
-              {{ box.trend.value }}%
+              {{ box.trend.value }}
             </div>
           </div>
         </div>
 
-        <!-- ── Charts Row (Two Columns) ── -->
+        <!-- ── Charts Row ── -->
         <div class="charts-grid">
-          <!-- Chart 1: Donut -->
+
+          <!-- Chart 1: Donut — Category Distribution -->
           <div class="panel">
             <div class="panel-head">
-              <h2>Food Items Distribution</h2>
+              <h2>Food Items by Category</h2>
+              <span class="panel-badge">{{ selectedCategory === 'All' ? 'All' : selectedCategory }}</span>
             </div>
             <div class="chart-content">
-              <div class="donut-wrap">
-                <div class="donut-chart"></div>
-                <div class="donut-legend">
-                  <div class="leg-item"><span class="dot" style="background: #2da12b;"></span> Veggies (40%)</div>
-                  <div class="leg-item"><span class="dot" style="background: #f59e0b;"></span> Fruits (30%)</div>
-                  <div class="leg-item"><span class="dot" style="background: #3b82f6;"></span> Dairy (20%)</div>
-                  <div class="leg-item"><span class="dot" style="background: #ef4444;"></span> Meats (10%)</div>
+              <div v-if="donutData.length" class="donut-wrap">
+                <!-- Reactive SVG donut -->
+                <div class="donut-container">
+                  <div class="donut-chart" :style="{ background: donutGradient }"></div>
+                  <div class="donut-center-label">
+                    <span class="donut-total">{{donutData.reduce((s, d) => s + d.count, 0)}}</span>
+                    <span class="donut-total-lbl">items</span>
+                  </div>
                 </div>
+                <div class="donut-legend">
+                  <div v-for="item in donutData" :key="item.label" class="leg-item">
+                    <span class="dot" :style="{ background: item.color }"></span>
+                    <span class="leg-name">{{ item.label }}</span>
+                    <span class="leg-pct">{{ item.percent }}%</span>
+                    <span class="leg-count">({{ item.count }})</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="chart-empty">
+                <span>📦</span>
+                <p>No category data</p>
               </div>
             </div>
           </div>
 
-          <!-- Chart 2: Activity (FR-4.1) -->
+          <!-- Chart 2: Bar Chart — Activity Over Time -->
           <div class="panel">
             <div class="panel-head">
               <h2>Activity Over Time</h2>
+              <div class="bar-legend-inline">
+                <span class="bl-dot" style="background:#2da12b"></span><span>Saved</span>
+                <span class="bl-dot" style="background:#3b82f6; margin-left:10px"></span><span>Donated</span>
+              </div>
             </div>
             <div class="chart-content">
-              <div class="bar-chart">
-                <div class="bar-group" v-for="(item, idx) in chartData" :key="idx">
-                  <div class="bar-track">
-                    <div class="bar-fill" :style="{ height: (item.value / item.maxValue * 100) + '%' }"></div>
-                  </div>
-                  <span class="bar-label">{{ item.label }}</span>
+              <div v-if="chartData.length" class="bar-chart-wrap" style="position:relative">
+
+                <!-- Tooltip -->
+                <div v-if="tooltip.visible" class="bar-tooltip"
+                  :style="{ left: tooltip.x + 'px', top: (tooltip.y - 10) + 'px' }">
+                  <strong>{{ tooltip.label }}</strong>
+                  <div>🥑 Saved: {{ tooltip.saved }}</div>
+                  <div>🤝 Donated: {{ tooltip.donated }}</div>
                 </div>
+
+                <div class="bar-chart">
+                  <div class="bar-group" v-for="(item, idx) in chartData" :key="idx"
+                    @mouseenter="showTooltip($event, item)" @mouseleave="hideTooltip">
+                    <div class="bars-stack">
+                      <!-- Saved bar (green) -->
+                      <div class="bar-track">
+                        <div class="bar-fill green" :style="{ height: (item.savedValue / item.maxValue * 100) + '%' }">
+                          <span v-if="item.savedValue > 0" class="bar-val">{{ item.savedValue }}</span>
+                        </div>
+                      </div>
+                      <!-- Donated bar (blue) -->
+                      <div class="bar-track">
+                        <div class="bar-fill blue" :style="{ height: (item.donatedValue / item.maxValue * 100) + '%' }">
+                          <span v-if="item.donatedValue > 0" class="bar-val">{{ item.donatedValue }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span class="bar-label">{{ item.label }}</span>
+                  </div>
+                </div>
+
+                <!-- Y-axis reference lines -->
+                <div class="y-gridlines">
+                  <div class="y-line" v-for="n in 4" :key="n" :style="{ bottom: (n * 25) + '%' }">
+                    <span class="y-tick">{{ Math.round(chartData[0]?.maxValue * n / 4) }}</span>
+                  </div>
+                </div>
+
+              </div>
+              <div v-else class="chart-empty">
+                <span>📅</span>
+                <p>No activity yet</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ── Badges & Impact Row ── -->
+        <!-- ── Bottom Grid: Impact + Badges ── -->
         <div class="bottom-grid">
+
           <!-- Environment Impact -->
           <div class="panel impact-panel">
             <div class="panel-head">
@@ -135,14 +229,14 @@ const userName = ref('Adrienne Kayana')
             </div>
           </div>
 
-          <!-- Badges (FR-4.4) -->
+          <!-- Badges -->
           <div class="panel badges-panel">
             <div class="panel-head">
               <h2>Milestones & Badges</h2>
             </div>
             <div class="badges-content">
-              <div v-for="badge in badges" :key="badge.id" class="badge-item" :class="{ 'achieved': badge.achieved }">
-                <div class="badge-icon-wrap" :class="{ 'locked': !badge.achieved }">
+              <div v-for="badge in badges" :key="badge.id" class="badge-item" :class="{ achieved: badge.achieved }">
+                <div class="badge-icon-wrap" :class="{ locked: !badge.achieved }">
                   <span class="b-icon">{{ badge.icon }}</span>
                 </div>
                 <div class="badge-info">
@@ -159,8 +253,8 @@ const userName = ref('Adrienne Kayana')
             </div>
           </div>
         </div>
-      </template>
 
+      </template>
     </div>
   </AppLayout>
 </template>
@@ -193,8 +287,6 @@ const userName = ref('Adrienne Kayana')
   font-size: 1.5rem;
   font-weight: 800;
   color: #1a1a1a;
-  background: none;
-  -webkit-text-fill-color: unset;
   margin-bottom: 3px;
   line-height: 1.2;
 }
@@ -208,6 +300,7 @@ const userName = ref('Adrienne Kayana')
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .filter-select {
@@ -228,7 +321,7 @@ const userName = ref('Adrienne Kayana')
   border-color: #2da12b;
 }
 
-.dev-btn {
+.refresh-btn {
   background: #f0f4f0;
   border: none;
   width: 36px;
@@ -238,12 +331,53 @@ const userName = ref('Adrienne Kayana')
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #2da12b;
   transition: background 0.2s;
 }
 
-.dev-btn:hover {
+.refresh-btn:hover {
   background: #e0e8e0;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.spinning {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Loading ── */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 4rem;
+  color: #7a8a7a;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e8ede8;
+  border-top-color: #2da12b;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* ── Empty State ── */
@@ -293,7 +427,6 @@ const userName = ref('Adrienne Kayana')
   border-radius: 8px;
   font-weight: 700;
   text-decoration: none;
-  transition: background 0.2s;
 }
 
 .btn-primary:hover {
@@ -307,7 +440,6 @@ const userName = ref('Adrienne Kayana')
   border-radius: 8px;
   font-weight: 700;
   text-decoration: none;
-  transition: background 0.2s;
 }
 
 .btn-secondary:hover {
@@ -368,7 +500,6 @@ const userName = ref('Adrienne Kayana')
   color: #7a8a7a;
 }
 
-/* Trend Badge */
 .trend-badge {
   position: absolute;
   top: 1.2rem;
@@ -410,6 +541,15 @@ const userName = ref('Adrienne Kayana')
   color: #1a1a1a;
 }
 
+.panel-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #f0f4f0;
+  color: #5a6a5a;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
 /* ── Charts Grid ── */
 .charts-grid {
   display: grid;
@@ -424,25 +564,42 @@ const userName = ref('Adrienne Kayana')
   min-height: 200px;
   background: #fdfdfd;
   border-radius: 12px;
+  padding: 0.75rem;
 }
 
-/* Donut Chart Simulation */
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.chart-empty span {
+  font-size: 2.5rem;
+}
+
+/* ── Donut Chart ── */
 .donut-wrap {
   display: flex;
   align-items: center;
   gap: 1.5rem;
   width: 100%;
-  padding: 0 1rem;
+  padding: 0 0.5rem;
+}
+
+.donut-container {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .donut-chart {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: conic-gradient(#2da12b 0% 40%, #f59e0b 40% 70%, #3b82f6 70% 90%, #ef4444 90% 100%);
-  position: relative;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
-  flex-shrink: 0;
+  transition: background 0.6s ease;
 }
 
 .donut-chart::after {
@@ -457,50 +614,116 @@ const userName = ref('Adrienne Kayana')
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
+.donut-center-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.donut-total {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.donut-total-lbl {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #7a8a7a;
+}
+
 .donut-legend {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .leg-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
+  gap: 6px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #5a6a5a;
 }
 
-.leg-item .dot {
+.leg-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leg-pct {
+  font-weight: 800;
+  color: #2a2a2a;
+}
+
+.leg-count {
+  color: #aaa;
+}
+
+.dot {
   width: 10px;
   height: 10px;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
-/* Bar Chart Simulation */
+/* ── Bar Chart ── */
+.bar-chart-wrap {
+  width: 100%;
+  position: relative;
+}
+
 .bar-chart {
   width: 100%;
-  height: 160px;
+  height: 170px;
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
-  padding: 0 0.5rem;
+  padding: 0 2rem 0 2.5rem;
+  position: relative;
+  gap: 4px;
 }
 
 .bar-group {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   height: 100%;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.bar-group:hover .bar-fill {
+  filter: brightness(1.1);
+}
+
+.bars-stack {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+  flex: 1;
 }
 
 .bar-track {
-  width: 28px;
-  flex: 1;
+  width: 14px;
+  height: 100%;
   background: #f0f4f0;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -509,16 +732,104 @@ const userName = ref('Adrienne Kayana')
 
 .bar-fill {
   width: 100%;
-  background: linear-gradient(180deg, #3dc43b 0%, #2da12b 100%);
-  border-radius: 8px;
-  transition: height 0.8s ease;
-  box-shadow: 0 4px 10px rgba(45, 161, 43, 0.25);
+  border-radius: 6px;
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  min-height: 0;
+}
+
+.bar-fill.green {
+  background: linear-gradient(180deg, #4ade80 0%, #2da12b 100%);
+  box-shadow: 0 3px 8px rgba(45, 161, 43, 0.3);
+}
+
+.bar-fill.blue {
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  box-shadow: 0 3px 8px rgba(59, 130, 246, 0.3);
+}
+
+.bar-val {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
 }
 
 .bar-label {
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: #7a8a7a;
+  white-space: nowrap;
+}
+
+/* Y-axis gridlines */
+.y-gridlines {
+  position: absolute;
+  top: 0;
+  left: 2.5rem;
+  right: 0;
+  height: 170px;
+  pointer-events: none;
+}
+
+.y-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #eee;
+  display: flex;
+  align-items: flex-end;
+}
+
+.y-tick {
+  position: absolute;
+  left: -2rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #c0c0c0;
+  transform: translateY(50%);
+}
+
+/* Bar legend */
+.bar-legend-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5a6a5a;
+}
+
+.bl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Tooltip */
+.bar-tooltip {
+  position: absolute;
+  background: rgba(20, 20, 20, 0.88);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  z-index: 10;
+  line-height: 1.6;
+  backdrop-filter: blur(4px);
+}
+
+.bar-tooltip strong {
+  display: block;
+  margin-bottom: 2px;
 }
 
 /* ── Bottom Grid ── */
@@ -528,7 +839,6 @@ const userName = ref('Adrienne Kayana')
   gap: 1rem;
 }
 
-/* Impact Panel */
 .impact-panel {
   display: flex;
   flex-direction: column;
@@ -577,7 +887,7 @@ const userName = ref('Adrienne Kayana')
   color: #7a8a7a;
 }
 
-/* Badges Panel */
+/* Badges */
 .badges-content {
   display: flex;
   flex-direction: column;
@@ -638,6 +948,7 @@ const userName = ref('Adrienne Kayana')
   height: 100%;
   background: #f59e0b;
   border-radius: 3px;
+  transition: width 0.6s ease;
 }
 
 .badge-progress-text {
@@ -646,7 +957,7 @@ const userName = ref('Adrienne Kayana')
   color: #7a8a7a;
 }
 
-/* ── Mobile Responsive ── */
+/* ── Responsive ── */
 @media (max-width: 960px) {
   .bottom-grid {
     grid-template-columns: 1fr;
