@@ -126,7 +126,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// @desc    Login user
+// @desc    Login user (2FA-aware)
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -149,8 +149,28 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    const token = signToken(user);
+    // ── 2FA check ──
+    if (user.is2FAEnabled) {
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
 
+      await sendEmail({
+        email: user.email,
+        subject: 'SavePlate - Login Verification Code',
+        message: `Your SavePlate login code is: ${otp}. It expires in 10 minutes.`,
+        html: buildOtpEmailHtml(otp, user.name),
+      });
+
+      return res.status(200).json({
+        message: '2FA code sent to your email.',
+        requires2FA: true,
+        email: user.email,
+      });
+    }
+
+    const token = signToken(user);
     res.status(200).json({
       message: 'Login successful.',
       token,
@@ -158,6 +178,40 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Complete 2FA login
+exports.login2FA = async (req, res) => {
+  try {
+    const { email, otpCode } = req.body;
+    if (!email || !otpCode) {
+      return res.status(400).json({ message: 'Email and OTP code are required.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (!user.otpExpires || user.otpExpires < Date.now()) {
+      return res.status(400).json({ message: 'Code has expired. Please log in again.' });
+    }
+    if (user.otp !== otpCode) {
+      return res.status(400).json({ message: 'Invalid code. Please try again.' });
+    }
+
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    const token = signToken(user);
+    res.status(200).json({
+      message: 'Login successful.',
+      token,
+      user: publicUser(user),
+    });
+  } catch (error) {
+    console.error('2FA login error:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
@@ -297,6 +351,37 @@ exports.verifyOtp = async (req, res) => {
     });
   } catch (error) {
     console.error('Verify OTP error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Change password
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new passwords are required.' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({
+        message: 'New password must be at least 8 characters and include one uppercase letter and one number.',
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Change password error:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
