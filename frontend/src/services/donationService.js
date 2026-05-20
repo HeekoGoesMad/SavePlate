@@ -1,7 +1,8 @@
 import { ref } from 'vue'
 import { authService } from './authService'
 
-const API_URL = 'http://localhost:3000/api/donations'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/donations'
 
 export const allItems = ref([])
 export const isLoading = ref(false)

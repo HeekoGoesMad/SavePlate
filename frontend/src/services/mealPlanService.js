@@ -1,6 +1,7 @@
 import { authService } from './authService'
 
-const API_URL = 'http://localhost:3000/api/meal-plan'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/meal-plan'
 
 /**
  * Fetch the meal plan for a given ISO week start (Monday).

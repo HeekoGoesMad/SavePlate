@@ -1,7 +1,8 @@
 import { ref, computed, watch } from 'vue'
 import { authService } from './authService'
 
-const API_URL = 'http://localhost:3000/api/analytics'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/analytics'
 
 // ── Filters (bound to UI) ────────────────────────────────────────────────────
 export const timePeriod       = ref('all')

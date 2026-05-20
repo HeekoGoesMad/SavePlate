@@ -1,6 +1,7 @@
 import { authService } from './authService'
 
-const API_URL = 'http://localhost:3000/api/recipes'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/recipes'
 
 /**
  * Fetch recipe suggestions from the backend.
