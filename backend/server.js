@@ -6,15 +6,59 @@ const connectDB = require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+let databaseInitPromise;
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
 }));
 app.use(express.json());
 
+const initDatabase = async () => {
+  if (!databaseInitPromise) {
+    databaseInitPromise = (async () => {
+      await connectDB();
+
+      // Seed recipes if needed
+      try {
+        const seedRecipes = require('./utils/seedRecipes');
+        await seedRecipes();
+      } catch (seedErr) {
+        console.error('⚠️ Recipe seeding skipped or failed:', seedErr.message);
+      }
+    })();
+  }
+
+  return databaseInitPromise;
+};
+
+app.use(async (req, res, next) => {
+  try {
+    await initDatabase();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Basic Route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'SavePlate API is running.',
+    health: '/api/health',
+  });
+});
+
 app.get('/api', (req, res) => {
   res.json({ message: 'Welcome to the SavePlate API!' });
 });
@@ -44,19 +88,15 @@ app.use((err, req, res, next) => {
 });
 
 const startServer = async () => {
-  await connectDB();
-  
-  // Seed recipes if needed
-  try {
-    const seedRecipes = require('./utils/seedRecipes');
-    await seedRecipes();
-  } catch (seedErr) {
-    console.error('⚠️ Recipe seeding skipped or failed:', seedErr.message);
-  }
+  await initDatabase();
 
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

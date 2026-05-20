@@ -2,7 +2,8 @@ import { ref, computed } from 'vue'
 import { authService } from '../services/authService'
 import { items as inventoryItems, daysUntilExpiry } from '../services/inventoryService'
 
-const API_URL = 'http://localhost:3000/api/meal-plan'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/meal-plan'
 
 // ── Inventory computed from real inventory service ──
 const inventory = computed(() =>

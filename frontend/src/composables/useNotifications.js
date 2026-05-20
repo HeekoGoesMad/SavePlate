@@ -1,7 +1,8 @@
 import { ref } from 'vue'
 import { authService } from '../services/authService'
 
-const API_URL = 'http://localhost:3000/api/notifications'
+const _BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = _BASE + '/notifications'
 
 // ── Module-level singleton — shared across all components ──
 const notifications = ref([])
