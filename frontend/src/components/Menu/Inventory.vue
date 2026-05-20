@@ -47,7 +47,7 @@ const summaryCards = computed(() => {
 
   return [
     { label: 'Total Items', value: active.length, unit: 'in inventory', icon: '📦', color: '#3b82f6', bg: '#eff6ff' },
-    { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: 'âš ï¸', color: '#f59e0b', bg: '#fffbeb' },
+    { label: 'Expiring Soon', value: expiringSoon.length, unit: 'within 3 days', icon: '❗', color: '#f5210b', bg: '#fff0f0' },
     { label: 'Items Used', value: usedCount, unit: 'saved from waste', icon: '✅', color: '#22c55e', bg: '#f0fdf4' },
   ]
 })
@@ -395,7 +395,7 @@ async function goToMealPlan(item) {
                 <span class="meta-text">{{ item.quantity }} {{ item.unit }}</span>
               </div>
               <div v-if="item.storageLocation" class="card-meta-row">
-                <span class="meta-icon">ðŸ—„ï¸</span>
+                <span class="meta-icon">🗄️</span>
                 <span class="meta-text">{{ item.storageLocation }}</span>
               </div>
               <div class="card-meta-row">

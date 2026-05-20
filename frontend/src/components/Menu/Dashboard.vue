@@ -44,9 +44,9 @@ const expiringItems = computed(() =>
 // Summary cards — Unread Alerts uses live shared unreadCount
 const summaryCards = computed(() => [
   { label: 'Items Saved',   value: String(filteredStats.value.totalSaved), unit: 'total',         icon: '🥦', color: '#2da12b', bg: '#f0faf0' },
-  { label: 'Expiring Soon', value: String(expiringItems.value.length),     unit: 'within 3 days', icon: '⚠️', color: '#f59e0b', bg: '#fffbeb' },
+  { label: 'Expiring Soon', value: String(expiringItems.value.length),     unit: 'within 3 days', icon: '❗', color: '#f5210b', bg: '#fff0f0' },
   { label: 'Meals Planned', value: String(plannedMealsCount.value),        unit: 'this week',     icon: '🍽️', color: '#3b82f6', bg: '#eff6ff' },
-  { label: 'Unread Alerts', value: String(unreadCount.value),              unit: 'new',           icon: '🔔', color: '#ef4444', bg: '#fef2f2' },
+  { label: 'Unread Alerts', value: String(unreadCount.value),              unit: 'new',           icon: '🔔', color: '#f59e0b', bg: '#fffbeb' },
 ])
 
 // ── Bell popup (desktop) — top 5 from shared store ──
