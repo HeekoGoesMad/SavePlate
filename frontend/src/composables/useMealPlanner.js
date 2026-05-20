@@ -14,6 +14,7 @@ const inventory = computed(() =>
       qty: `${i.quantity} ${i.unit}`,
       daysLeft: daysUntilExpiry(i.expiryDate),
       category: i.category,
+      expiryDate: i.expiryDate,
       isReserved: i.status === 'reserved',
     }))
 )
@@ -41,19 +42,67 @@ function getWeekDays(weekOffset = 0) {
   })
 }
 
+const RECIPES = [
+  { name: 'Spinach Smoothie', required: ['Spinach', 'Greek Yogurt', 'Fresh Milk'] },
+  { name: 'Milk Oatmeal', required: ['Fresh Milk', 'Brown Rice'] },
+  { name: 'Greek Yogurt Bowl', required: ['Greek Yogurt', 'Cheddar'] },
+  { name: 'Tomato Omelette', required: ['Tomatoes', 'Spinach'] },
+  { name: 'Chicken & Rice', required: ['Chicken Thigh', 'Brown Rice'] },
+  { name: 'Cheesy Spinach Pasta', required: ['Spinach', 'Cheddar'] },
+  { name: 'Tomato Caprese Salad', required: ['Tomatoes', 'Cheddar'] },
+  { name: 'Chicken Salad', required: ['Chicken Thigh', 'Spinach', 'Tomatoes'] }
+]
+
 /**
  * Returns recipe suggestions based on inventory items sorted by expiry urgency.
  * Prioritises items nearing expiry as per FR-6.2.
  */
 function getRecipeSuggestions(inv) {
-  const items = [...inv].sort((a, b) => a.daysLeft - b.daysLeft)
-  // Generate dynamic suggestions from actual inventory
-  const suggestions = items.slice(0, 5).map(item => ({
-    name: `Meal with ${item.name}`,
-    uses: [item.name],
-    daysLeft: item.daysLeft,
-  }))
-  return suggestions.sort((a, b) => a.daysLeft - b.daysLeft)
+  const suggestions = RECIPES.map(recipe => {
+    const matchedItems = []
+    const unmatched = []
+    let minDaysLeft = Infinity
+
+    recipe.required.forEach(reqIng => {
+      const match = (inv || []).find(item => {
+        const name1 = item.name.toLowerCase()
+        const name2 = reqIng.toLowerCase()
+        return name1.includes(name2) || name2.includes(name1)
+      })
+
+      if (match) {
+        matchedItems.push(match.name)
+        const daysLeft = match.daysLeft
+        if (daysLeft < minDaysLeft) {
+          minDaysLeft = daysLeft
+        }
+      } else {
+        unmatched.push(reqIng)
+      }
+    })
+
+    const matchCount = matchedItems.length
+
+    return {
+      name: recipe.name,
+      uses: matchedItems,
+      unmatched: unmatched,
+      daysLeft: matchCount > 0 ? minDaysLeft : 99,
+      matchCount
+    }
+  })
+
+  suggestions.sort((a, b) => {
+    if (a.daysLeft !== b.daysLeft) {
+      return a.daysLeft - b.daysLeft
+    }
+    if (b.matchCount !== a.matchCount) {
+      return b.matchCount - a.matchCount
+    }
+    return a.name.localeCompare(b.name)
+  })
+
+  return suggestions.slice(0, 5)
 }
 
 /**

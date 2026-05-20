@@ -26,6 +26,7 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/meal-plan',     require('./routes/mealPlanRoutes'));
 app.use('/api/donations',     require('./routes/donationRoutes'));
 app.use('/api/analytics',     require('./routes/analyticsRoutes'));
+app.use('/api/recipes',       require('./routes/recipeRoutes'));
 
 // Health-check route
 app.get('/api/health', (req, res) => {
@@ -42,9 +43,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error.' });
 });
 
-// Connect to MongoDB, then start the server
 const startServer = async () => {
   await connectDB();
+  
+  // Seed recipes if needed
+  try {
+    const seedRecipes = require('./utils/seedRecipes');
+    await seedRecipes();
+  } catch (seedErr) {
+    console.error('⚠️ Recipe seeding skipped or failed:', seedErr.message);
+  }
 
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

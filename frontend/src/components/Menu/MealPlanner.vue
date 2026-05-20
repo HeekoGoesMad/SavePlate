@@ -10,12 +10,15 @@ import {
   unreserveItem as apiUnreserveItem,
 } from '@/services/inventoryService'
 import { getMealPlan, saveMealPlan, flatPlanToSlots, slotsToPlanMap } from '@/services/mealPlanService'
+import { fetchRecipeSuggestions } from '@/services/recipeService'
 
 const { showToast } = useToast()
 const { addNotification, unreadCount } = useNotifications()
 const {
   getExpiringSuggestions,
   urgencyColor,
+  getRecipeSuggestions,
+  inventory: plannerInventory,
 } = useMealPlanner()
 
 // ── Week navigation ──
@@ -97,6 +100,7 @@ const inventory = computed(() =>
       qty: `${i.quantity} ${i.unit}`,
       daysLeft: daysUntilExpiry(i.expiryDate),
       category: i.category,
+      expiryDate: i.expiryDate,
       // isScheduled = item is currently placed in at least one meal slot
       isScheduled: scheduledIngredients.value.has(i.name.toLowerCase()),
     }))
@@ -111,13 +115,19 @@ const modalTab = ref('manual')   // 'manual' | 'recipe'
 const mealName = ref('')
 const selectedIngredients = ref([])
 
-const recipeSuggestions = computed(() => [
-  { name: 'Spinach Smoothie', uses: ['Spinach'], daysLeft: 2 },
-  { name: 'Milk Oatmeal', uses: ['Fresh Milk'], daysLeft: 1 },
-  { name: 'Greek Yogurt Bowl', uses: ['Greek Yogurt'], daysLeft: 3 },
-  { name: 'Tomato Omelette', uses: ['Tomatoes'], daysLeft: 4 },
-  { name: 'Chicken & Rice', uses: ['Chicken Thigh', 'Brown Rice'], daysLeft: 5 },
-])
+const recipeSuggestions = ref([])
+
+async function loadSuggestions() {
+  try {
+    const data = await fetchRecipeSuggestions()
+    recipeSuggestions.value = data
+  } catch (error) {
+    console.error('Failed to load recipe suggestions from API, falling back to local calculation:', error)
+    recipeSuggestions.value = getRecipeSuggestions(plannerInventory.value)
+  }
+}
+
+watch(items, loadSuggestions, { deep: true, immediate: true })
 
 function openModal(dayIso, slot) {
   modalDay.value = dayIso
@@ -383,10 +393,10 @@ onMounted(async () => {
               :class="item.isScheduled ? 'inv-scheduled' : 'inv-pending'">
               <div class="inv-info">
                 <span class="inv-name">{{ item.name }}</span>
-                <span class="inv-meta">{{ item.category }} · {{ item.qty }}</span>
+                <span class="inv-meta">{{ item.category }} · {{ item.qty }} · Expires {{ item.expiryDate }}</span>
               </div>
               <div class="inv-right">
-                <span class="exp-chip"
+                <span class="exp-chip" :title="'Expires ' + item.expiryDate"
                   :style="{ background: urgencyColor(item.daysLeft).bg, color: urgencyColor(item.daysLeft).color }">
                   {{ item.daysLeft }}d
                 </span>
@@ -441,6 +451,7 @@ onMounted(async () => {
               <label>Ingredients from Inventory</label>
               <div class="ingredient-chips">
                 <button v-for="item in inventory" :key="item.id" class="ing-chip"
+                  :title="'Expires ' + item.expiryDate"
                   :class="{ selected: selectedIngredients.includes(item.name) }" @click="toggleIngredient(item.name)">
                   {{ item.name }}
                   <span class="ing-dot" :style="{ background: urgencyColor(item.daysLeft).color }"></span>
@@ -456,10 +467,19 @@ onMounted(async () => {
                 <div class="recipe-icon">🍳</div>
                 <div class="recipe-info">
                   <div class="recipe-name">{{ rec.name }}</div>
-                  <div class="recipe-uses">Uses: {{ rec.uses.join(', ') }}</div>
+                  <div class="recipe-ingredients">
+                    <span class="ingredients-label">Ingredients: </span>
+                    <span v-for="(ing, idx) in rec.uses" :key="'match-' + idx" class="ing-match">
+                      {{ ing }}{{ idx < rec.uses.length - 1 || (rec.unmatched && rec.unmatched.length > 0) ? ', ' : '' }}
+                    </span>
+                    <span v-for="(ing, idx) in (rec.unmatched || [])" :key="'unmatch-' + idx" class="ing-unmatch">
+                      {{ ing }}{{ idx < rec.unmatched.length - 1 ? ', ' : '' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="recipe-urgency" :style="{ color: urgencyColor(rec.daysLeft).color }">{{ rec.daysLeft }}d
-                  left</div>
+                <div class="recipe-urgency" :style="{ color: urgencyColor(rec.daysLeft).color }">
+                  {{ rec.daysLeft <= 0 ? 'Today' : rec.daysLeft + 'd left' }}
+                </div>
               </div>
             </div>
           </div>
@@ -1220,11 +1240,19 @@ onMounted(async () => {
   font-weight: 700;
   color: #1a1a1a;
 }
-
-.recipe-uses {
+.recipe-ingredients {
   font-size: 0.73rem;
-  color: #9aaa9a;
+  color: #666;
   margin-top: 2px;
+}
+
+.ing-match {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.ing-unmatch {
+  color: #9ca3af;
 }
 
 .recipe-urgency {

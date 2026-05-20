@@ -404,7 +404,7 @@ async function goToMealPlan(item) {
                 <span class="meta-text" v-else>Expires {{ item.expiryDate }}</span>
               </div>
               <div v-if="item.notes" class="card-meta-row">
-                <span class="meta-icon">ðŸ“</span>
+                <span class="meta-icon">🗒️</span>
                 <span class="meta-text">{{ item.notes }}</span>
               </div>
             </div>
