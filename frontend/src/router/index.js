@@ -11,6 +11,7 @@ import MealPlanner  from '@/components/Menu/MealPlanner.vue'
 import BrowseFood   from '@/components/Menu/BrowseFood.vue'
 import Analytics    from '@/components/Menu/Analytics.vue'
 import Settings     from '@/components/Menu/Settings.vue'
+import NotFound     from '@/components/Layout/NotFound.vue'
 
 const routes = [
   { path: '/login', name: 'login', component: LoginPage },
@@ -23,6 +24,7 @@ const routes = [
   { path: '/meal-planner', name: 'meal-planner', component: MealPlanner, meta: { requiresAuth: true } },
   { path: '/analytics', name: 'analytics', component: Analytics, meta: { requiresAuth: true } },
   { path: '/settings', name: 'settings', component: Settings, meta: { requiresAuth: true } },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound },
 ]
 
 const router = createRouter({

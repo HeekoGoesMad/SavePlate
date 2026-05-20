@@ -110,10 +110,37 @@ async function submitChangePw() {
   }
 }
 
+// ── Notification Preferences (FR — US 1.2.1-22) ──
+const notifExpiryAlerts   = ref(true)
+const notifDonationUpdates = ref(true)
+const notifMealReminders  = ref(true)
+const notifAccountAlerts  = ref(true)
+
+const notifPrefs = [
+  { key: 'expiryAlerts',   label: 'Expiry Alerts',    desc: 'Get notified when food items are about to expire', modelRef: notifExpiryAlerts },
+  { key: 'donationUpdates', label: 'Donation Updates', desc: 'Receive updates when donations are claimed or confirmed', modelRef: notifDonationUpdates },
+  { key: 'mealReminders',  label: 'Meal Reminders',   desc: 'Get reminded to plan meals and use expiring ingredients', modelRef: notifMealReminders },
+  { key: 'accountAlerts',  label: 'Account Alerts',   desc: 'Important security and account activity notifications', modelRef: notifAccountAlerts },
+]
+
+async function toggleNotifPref(pref) {
+  const newVal = !pref.modelRef.value
+  pref.modelRef.value = newVal
+  await saveProfileSettings(
+    { [pref.key]: newVal },
+    newVal ? `${pref.label} enabled` : `${pref.label} disabled`,
+    newVal ? 'success' : 'warning'
+  )
+}
+
 function syncProfileSettings() {
   twoFactorEnabled.value = Boolean(profile.value.is2FAEnabled)
   const vis = profile.value.listingVisibility
   donationVisibility.value = (vis === 'public' || vis === 'private') ? vis : 'public'
+  notifExpiryAlerts.value   = profile.value.expiryAlerts   !== false
+  notifDonationUpdates.value = profile.value.donationUpdates !== false
+  notifMealReminders.value  = profile.value.mealReminders  !== false
+  notifAccountAlerts.value  = profile.value.accountAlerts  !== false
 }
 
 onMounted(async () => {
@@ -266,6 +293,41 @@ function doLogout() {
               <span class="vis-check" v-if="donationVisibility === opt.value">✓</span>
             </button>
           </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════
+           4. Notification Preferences
+      ══════════════════════════════════════ -->
+      <section class="settings-card">
+        <div class="card-header no-action">
+          <div class="card-title-row">
+            <span class="card-icon-wrap" style="--ic-bg:#fce7f3;--ic-color:#db2777;">🔔</span>
+            <h2>Notification Preferences</h2>
+          </div>
+        </div>
+
+        <div class="toggle-list">
+          <template v-for="(pref, idx) in notifPrefs" :key="pref.key">
+            <div class="toggle-item">
+              <div class="toggle-info">
+                <span class="toggle-label">{{ pref.label }}</span>
+                <span class="toggle-desc">{{ pref.desc }}</span>
+              </div>
+              <button
+                class="toggle-switch"
+                :class="{ on: pref.modelRef.value }"
+                :id="`notif-toggle-${pref.key}`"
+                @click="toggleNotifPref(pref)"
+                :aria-checked="pref.modelRef.value"
+                role="switch"
+                :aria-label="`Toggle ${pref.label}`"
+              >
+                <span class="toggle-thumb"></span>
+              </button>
+            </div>
+            <div v-if="idx < notifPrefs.length - 1" class="info-divider"></div>
+          </template>
         </div>
       </section>
 
