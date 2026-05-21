@@ -71,15 +71,30 @@ const TYPE_CONFIG = {
   account:   { label: 'Account Alert',   icon: '🔐', color: '#ef4444' },
 }
 
-const mobilePopupOpen = ref(false)
-const bellRef         = ref(null)
+const mobilePopupOpen  = ref(false)
+const bellRef          = ref(null)
+const profilePopupOpen = ref(false)
+const profileRef       = ref(null)
 
 // Show only the 5 most-recent in the mobile quick-sheet
 const mobileNotifs = computed(() => notifications.value.slice(0, 5))
 const mobileUnread = computed(() => sharedUnread.value)
 
-function toggleMobilePopup() { mobilePopupOpen.value = !mobilePopupOpen.value }
-function closeMobilePopup()  { mobilePopupOpen.value = false }
+function toggleMobilePopup()  { mobilePopupOpen.value = !mobilePopupOpen.value }
+function closeMobilePopup()   { mobilePopupOpen.value = false }
+function toggleProfilePopup() { profilePopupOpen.value = !profilePopupOpen.value }
+function closeProfilePopup()  { profilePopupOpen.value = false }
+
+function goToSettings() {
+  closeProfilePopup()
+  router.push({ name: 'settings' })
+}
+
+function handleLogout() {
+  closeProfilePopup()
+  authService.logout()
+  router.push({ name: 'login' })
+}
 
 function markMobileRead(id) {
   markRead(id)
@@ -94,6 +109,10 @@ function handleClickOutside(e) {
   if (mobilePopupOpen.value && bellRef.value && !bellRef.value.contains(e.target)) {
     const sheet = document.querySelector('.mobile-notif-sheet')
     if (sheet && !sheet.contains(e.target)) closeMobilePopup()
+  }
+  if (profilePopupOpen.value && profileRef.value && !profileRef.value.contains(e.target)) {
+    const sheet = document.querySelector('.mobile-profile-sheet')
+    if (sheet && !sheet.contains(e.target)) closeProfilePopup()
   }
 }
 
@@ -158,7 +177,15 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
           </button>
         </div>
 
-        <div class="avatar-sm">{{ userInitials }}</div>
+        <button
+          ref="profileRef"
+          class="avatar-sm-btn"
+          :class="{ active: profilePopupOpen }"
+          @click="toggleProfilePopup"
+          aria-label="User Profile"
+        >
+          {{ userInitials }}
+        </button>
       </div>
     </header>
 
@@ -210,6 +237,49 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
                 View all notifications →
               </button>
               <button class="sheet-close" @click="closeMobilePopup">Close</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ── MOBILE PROFILE BOTTOM SHEET ── -->
+    <Teleport to="body">
+      <Transition name="sheet">
+        <div v-if="profilePopupOpen" class="sheet-backdrop" @click.self="closeProfilePopup">
+          <div class="mobile-profile-sheet">
+            <!-- Handle bar -->
+            <div class="sheet-handle"></div>
+
+            <!-- User Info Header -->
+            <div class="profile-sheet-header">
+              <div class="profile-avatar-large">{{ userInitials }}</div>
+              <div class="profile-user-details">
+                <span class="profile-name">{{ displayName }}</span>
+                <span class="profile-role">Household User</span>
+              </div>
+            </div>
+
+            <!-- List of options -->
+            <div class="sheet-list">
+              <button class="profile-sheet-item" @click="goToSettings">
+                <div class="profile-sheet-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path :d="iconPath('settings')"/></svg>
+                </div>
+                <div class="profile-sheet-label">Settings</div>
+              </button>
+
+              <button class="profile-sheet-item logout-item" @click="handleLogout">
+                <div class="profile-sheet-icon logout-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                </div>
+                <div class="profile-sheet-label logout-label">Log Out</div>
+              </button>
+            </div>
+
+            <!-- Footer -->
+            <div class="sheet-footer">
+              <button class="sheet-close" @click="closeProfilePopup">Close</button>
             </div>
           </div>
         </div>
@@ -449,12 +519,25 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
     line-height: 1;
   }
 
-  .avatar-sm {
+  .avatar-sm-btn {
     width: 32px; height: 32px; border-radius: 50%;
     background: linear-gradient(135deg, #2da12b, #3dc43b);
     color: white; font-size: 0.7rem; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
     letter-spacing: 0.02em;
+    border: none;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    padding: 0;
+  }
+  .avatar-sm-btn:hover,
+  .avatar-sm-btn.active {
+    box-shadow: 0 0 0 3px rgba(45,161,43,0.25);
+    transform: scale(1.05);
+  }
+  .avatar-sm-btn:focus-visible {
+    outline: 2px solid #2da12b;
+    outline-offset: 2px;
   }
 
   /* ── Bottom tabs ── */
@@ -757,6 +840,110 @@ onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
     max-width: calc(100vw - 1.5rem);
     padding: 11px 12px;
   }
+}
+/* ── Mobile profile sheet ── */
+.mobile-profile-sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  max-height: 75vh;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+.profile-sheet-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f4f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.profile-avatar-large {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2da12b, #3dc43b);
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(45,161,43,0.25);
+}
+
+.profile-user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.profile-role {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.profile-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+}
+
+.profile-sheet-item:hover {
+  background: #f9fbf9;
+}
+
+.profile-sheet-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #e8f5e8;
+  color: #2da12b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-sheet-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.profile-sheet-item.logout-item:hover {
+  background: #fdf2f2;
+}
+
+.profile-sheet-icon.logout-icon {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.profile-sheet-label.logout-label {
+  color: #ef4444;
 }
 
 </style>
