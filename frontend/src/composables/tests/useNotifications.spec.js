@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useNotifications } from '../useNotifications.js'
 
 // Seed snapshot - mirrors the actual data in useNotifications.js
@@ -21,6 +21,27 @@ const SEED = [
 beforeEach(() => {
   const { notifications } = useNotifications()
   notifications.value = SEED.map(n => ({ ...n }))
+
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url, options) => {
+    let responseData = {}
+    if (options && options.body) {
+      try {
+        const body = JSON.parse(options.body)
+        responseData = {
+          ...body,
+          _id: body.id || Date.now()
+        }
+      } catch (e) {}
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(responseData),
+    })
+  }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 // =============================================================================

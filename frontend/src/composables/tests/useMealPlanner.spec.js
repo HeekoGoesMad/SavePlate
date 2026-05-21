@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useMealPlanner } from '../useMealPlanner.js'
 
 // ── Helper: fresh inventory for each test ──
@@ -21,8 +21,23 @@ beforeEach(() => {
   planner.mealPlan.value = {}
   planner.confirmedSnapshot.value = '{}'
   planner.weekOffset.value = 0
-  // Reset inventory to default state
-  planner.inventory.value = freshInventory()
+
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url, options) => {
+    let responseData = {}
+    if (options && options.body) {
+      try {
+        responseData = JSON.parse(options.body)
+      } catch (e) {}
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(responseData),
+    })
+  }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 // =============================================================================
