@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 
+// Disable buffering so queries fail immediately instead of hanging if MongoDB is not connected
+mongoose.set('bufferCommands', false);
+
 /**
  * Connects to MongoDB Atlas using the URI from environment variables.
  * Exits the process with code 1 if the connection fails.

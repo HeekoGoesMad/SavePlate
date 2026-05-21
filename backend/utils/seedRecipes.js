@@ -1,5 +1,6 @@
 const Recipe = require('../models/Recipe');
 const https = require('https');
+const mongoose = require('mongoose');
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -36,6 +37,10 @@ const FALLBACK_RECIPES = [
 ];
 
 const seedRecipes = async () => {
+  if (mongoose.connection.readyState !== 1) {
+    console.warn('⚠️ MongoDB is not connected. Skipping recipe seeding.');
+    return;
+  }
   try {
     // Clear out any old hardcoded seed recipes so we can seed fresh ones from the API
     await Recipe.deleteMany({});
