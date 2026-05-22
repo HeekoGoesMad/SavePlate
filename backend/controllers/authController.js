@@ -118,7 +118,7 @@ exports.register = async (req, res) => {
       html: buildOtpEmailHtml(otp, user.name),
     });
 
-    console.log(`OTP sent to ${user.email}`);
+    console.log(`[DEV ONLY] OTP for ${user.email}: ${otp}`);
     res.status(201).json({ message: 'User registered. Verification email sent.', email: user.email });
   } catch (error) {
     console.error('Register error:', error);
@@ -156,6 +156,7 @@ exports.login = async (req, res) => {
       user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
 
+      console.log(`[DEV ONLY] 2FA OTP for ${user.email}: ${otp}`);
       await sendEmail({
         email: user.email,
         subject: 'SavePlate - Login Verification Code',
@@ -301,7 +302,7 @@ exports.sendOtp = async (req, res) => {
       html: buildOtpEmailHtml(otp, user.name),
     });
 
-    console.log(`OTP resent to ${user.email}`);
+    console.log(`[DEV ONLY] Resent OTP for ${user.email}: ${otp}`);
     res.status(200).json({ message: 'Verification code sent successfully.' });
   } catch (error) {
     console.error('Send OTP error:', error);
