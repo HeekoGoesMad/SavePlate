@@ -263,7 +263,6 @@ async function submitDonate() {
 // ── CATEGORY ICON HELPER ──
 function categoryIcon(category) {
   const map = {
-    Vegetables: 'ðŸ¥¬', Dairy: 'ðŸ¥›', Canned: 'ðŸ¥«', Frozen: 'ðŸ§Š',
     Vegetables: '🥦', Dairy: '🧀', Canned: '🥫', Frozen: '🧊',
     Bakery: '🍞', Fruits: '🍎', Protein: '🥚', Grains: '🌾', Other: '📦',
   }
@@ -298,7 +297,7 @@ async function goToMealPlan(item) {
     @navigate="emit('navigate', $event)">
     <div class="inventory-page">
 
-      <!-- â•â• PAGE HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+      <!-- PAGE HEADER  -->
       <div class="page-header">
         <div class="header-text">
           <h1>Food Inventory</h1>
@@ -310,7 +309,7 @@ async function goToMealPlan(item) {
         </button>
       </div>
 
-      <!-- â•â• INFO BOXES (Summary Cards) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+      <!-- INFO BOXES (Summary Cards)  -->
       <!-- Match Dashboard summary card style -->
       <div class="cards-row">
         <div v-for="card in summaryCards" :key="card.label" class="summary-card"
@@ -324,7 +323,7 @@ async function goToMealPlan(item) {
         </div>
       </div>
 
-      <!-- â•â• FILTER & SORT BAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+      <!-- FILTER & SORT BAR -->
       <div class="controls-bar">
         <!-- Filter by Status -->
         <div class="filter-group">
@@ -356,7 +355,7 @@ async function goToMealPlan(item) {
         </div>
       </div>
 
-      <!-- â•â• INVENTORY LIST â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+      <!-- INVENTORY LIST -->
       <div class="panel-head">
         <h2>Inventory Items</h2>
         <span class="item-count">{{ filteredItems.length }} item(s)</span>
@@ -435,11 +434,9 @@ async function goToMealPlan(item) {
     </div><!-- end .inventory-page -->
 
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-         MODAL: Add Food Item (FR-2.1)
+    <!-- MODAL: Add Food Item (FR-2.1)
          Fields: Name, Category, Quantity, Unit,
-                 Expiry Date, Storage Location, Notes
-    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+                 Expiry Date, Storage Location, Notes -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
@@ -522,16 +519,14 @@ async function goToMealPlan(item) {
     </Teleport>
 
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-         MODAL: Edit Food Item (FR-2.2)
-    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <!-- MODAL: Edit Food Item (FR-2.2) -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showEditModal && editItem" class="modal-overlay" @click.self="closeEditModal">
           <div class="modal" role="dialog" aria-labelledby="modal-edit-title">
 
             <div class="modal-header">
-              <h3 id="modal-edit-title">âœï¸ Edit Food Item</h3>
+              <h3 id="modal-edit-title">Edit Food Item</h3>
               <button class="modal-close" @click="closeEditModal" aria-label="Close">✕</button>
             </div>
 
@@ -595,18 +590,16 @@ async function goToMealPlan(item) {
     </Teleport>
 
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-         MODAL: Donate Item (FR-2.4)
+    <!-- MODAL: Donate Item (FR-2.4)
          Converts an inventory item to a donation listing.
-         Fields: Pickup Location, Availability
-    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+         Fields: Pickup Location, Availability -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showDonateModal && donateTarget" class="modal-overlay" @click.self="closeDonateModal">
           <div class="modal" role="dialog" aria-labelledby="modal-donate-title">
 
             <div class="modal-header">
-              <h3 id="modal-donate-title">ðŸ¤ Donate Food Item</h3>
+              <h3 id="modal-donate-title">Donate Food Item</h3>
               <button class="modal-close" @click="closeDonateModal" aria-label="Close">✕</button>
             </div>
 
@@ -636,7 +629,7 @@ async function goToMealPlan(item) {
 
             <div class="modal-footer">
               <button class="btn-secondary" @click="closeDonateModal">Cancel</button>
-              <button class="btn-donate" @click="submitDonate" id="btn-submit-donate">ðŸ¤ Post Donation</button>
+              <button class="btn-donate" @click="submitDonate" id="btn-submit-donate">Post Donation</button>
             </div>
           </div>
         </div>
@@ -644,9 +637,7 @@ async function goToMealPlan(item) {
     </Teleport>
 
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-         MODAL: Confirmation (Generic)
-    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <!-- MODAL: Confirmation (Generic) -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal">

@@ -9,7 +9,7 @@ const email       = ref('')
 const password    = ref('')
 const showPass    = ref(false)
 const isLoading   = ref(false)
-const submitted   = ref(false)  // tracks whether user tried to submit
+const submitted   = ref(false)  
 
 // 2FA state
 const requires2FA  = ref(false)
@@ -75,6 +75,100 @@ const backToLogin = () => {
   password.value = ''
   submitted.value = false
 }
+
+// Forgot password state
+const fpStep        = ref('login')
+const fpEmail       = ref('')
+const fpOtp         = ref('')
+const fpNewPass     = ref('')
+const fpConfirmPass = ref('')
+const fpShowNew     = ref(false)
+const fpShowConfirm = ref(false)
+const fpLoading     = ref(false)
+const fpError       = ref('')
+const fpSuccess     = ref('')
+const fpSubmitted   = ref(false)
+
+const fpEmailError = computed(() => {
+  if (!fpSubmitted.value) return ''
+  if (!fpEmail.value.trim()) return 'Email address is required.'
+  if (!emailRegex.test(fpEmail.value.trim())) return 'Please enter a valid email address.'
+  return ''
+})
+
+const fpNewPassError = computed(() => {
+  if (!fpSubmitted.value) return ''
+  if (!fpNewPass.value) return 'New password is required.'
+  if (fpNewPass.value.length < 8) return 'Password must be at least 8 characters.'
+  if (!/[A-Z]/.test(fpNewPass.value)) return 'Must include one uppercase letter.'
+  if (!/\d/.test(fpNewPass.value)) return 'Must include one number.'
+  return ''
+})
+
+const fpConfirmError = computed(() => {
+  if (!fpSubmitted.value) return ''
+  if (!fpConfirmPass.value) return 'Please confirm your password.'
+  if (fpNewPass.value !== fpConfirmPass.value) return 'Passwords do not match.'
+  return ''
+})
+
+const openForgotPassword = () => {
+  fpStep.value = 'fp-email'
+  fpEmail.value = email.value
+  fpOtp.value = ''
+  fpNewPass.value = ''
+  fpConfirmPass.value = ''
+  fpError.value = ''
+  fpSuccess.value = ''
+  fpSubmitted.value = false
+}
+
+const handleFpSendOtp = async () => {
+  fpSubmitted.value = true
+  fpError.value = ''
+  if (fpEmailError.value) return
+  fpLoading.value = true
+  try {
+    await authService.forgotPassword(fpEmail.value.trim())
+    fpStep.value = 'fp-otp'
+    fpSubmitted.value = false
+  } catch (err) {
+    fpError.value = err.message || 'Failed to send reset code.'
+  } finally {
+    fpLoading.value = false
+  }
+}
+
+const handleFpVerifyOtp = () => {
+  fpError.value = ''
+  if (!fpOtp.value.trim()) { fpError.value = 'Please enter the 6-digit code.'; return }
+  fpStep.value = 'fp-newpass'
+  fpSubmitted.value = false
+}
+
+const handleFpReset = async () => {
+  fpSubmitted.value = true
+  fpError.value = ''
+  if (fpNewPassError.value || fpConfirmError.value) return
+  fpLoading.value = true
+  try {
+    await authService.resetPassword(fpEmail.value.trim(), fpOtp.value.trim(), fpNewPass.value)
+    fpSuccess.value = 'Password reset successfully! You can now log in.'
+    fpStep.value = 'login'
+    fpSubmitted.value = false
+  } catch (err) {
+    fpError.value = err.message || 'Failed to reset password.'
+  } finally {
+    fpLoading.value = false
+  }
+}
+
+const cancelForgotPassword = () => {
+  fpStep.value = 'login'
+  fpError.value = ''
+  fpSuccess.value = ''
+  fpSubmitted.value = false
+}
 </script>
 
 
@@ -105,9 +199,12 @@ const backToLogin = () => {
         </div>
 
         <!-- ── Normal Login Form ── -->
-        <template v-if="!requires2FA">
+        <template v-if="!requires2FA && fpStep === 'login'">
           <h2>Welcome back</h2>
           <p class="subtitle">Login into your account to continue</p>
+
+          <!-- success banner after reset -->
+          <p v-if="fpSuccess" class="success-text">✅ {{ fpSuccess }}</p>
 
           <form @submit.prevent="handleLogin" novalidate>
 
@@ -136,12 +233,10 @@ const backToLogin = () => {
                   :class="{ 'input-error': passwordError }"
                 />
                 <button type="button" class="toggle-btn" @click="showPass = !showPass" :aria-label="showPass ? 'Hide password' : 'Show password'">
-                  <!-- Eye open -->
                   <svg v-if="!showPass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
-                  <!-- Eye closed -->
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                     <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -153,7 +248,7 @@ const backToLogin = () => {
             </div>
 
             <div class="forgot">
-              <a href="#">Forgot password?</a>
+              <a href="#" @click.prevent="openForgotPassword">Forgot password?</a>
             </div>
 
             <p v-if="serverError" class="error-text" style="text-align: center; margin-bottom: 0.75rem;">{{ serverError }}</p>
@@ -172,7 +267,7 @@ const backToLogin = () => {
         </template>
 
         <!-- ── 2FA OTP Step ── -->
-        <template v-else>
+        <template v-else-if="requires2FA">
           <div class="twofa-icon">🔒</div>
           <h2>Two-Factor Verification</h2>
           <p class="subtitle">A 6-digit code has been sent to<br/><strong>{{ twoFAEmail }}</strong></p>
@@ -204,6 +299,120 @@ const backToLogin = () => {
           </button>
         </template>
 
+        <!-- ── Forgot Password: Step 1 – Enter Email ── -->
+        <template v-else-if="fpStep === 'fp-email'">
+          <div class="twofa-icon">🔑</div>
+          <h2>Forgot Password</h2>
+          <p class="subtitle">Enter the email address linked to your account and we'll send you a reset code.</p>
+
+          <form @submit.prevent="handleFpSendOtp" novalidate>
+            <div class="field">
+              <label for="fp-email">Email Address</label>
+              <input
+                id="fp-email"
+                type="email"
+                v-model="fpEmail"
+                placeholder="your@email.com"
+                autocomplete="email"
+                :class="{ 'input-error': fpEmailError }"
+              />
+              <p v-if="fpEmailError" class="error-text">{{ fpEmailError }}</p>
+            </div>
+            <p v-if="fpError" class="error-text" style="text-align:center; margin-bottom:0.75rem;">{{ fpError }}</p>
+            <button type="submit" id="btn-fp-send" class="btn-primary" :disabled="fpLoading">
+              {{ fpLoading ? 'Sending...' : 'Send Reset Code' }}
+            </button>
+          </form>
+
+          <button type="button" class="btn-secondary" style="margin-top:0.75rem;" @click="cancelForgotPassword">
+            ← Back to Login
+          </button>
+        </template>
+
+        <!-- ── Forgot Password: Step 2 – Enter OTP ── -->
+        <template v-else-if="fpStep === 'fp-otp'">
+          <div class="twofa-icon">📧</div>
+          <h2>Check Your Email</h2>
+          <p class="subtitle">A 6-digit reset code has been sent to<br/><strong>{{ fpEmail }}</strong></p>
+
+          <form @submit.prevent="handleFpVerifyOtp" novalidate>
+            <div class="field">
+              <label for="fp-otp">Reset Code</label>
+              <input
+                id="fp-otp"
+                type="text"
+                v-model="fpOtp"
+                placeholder="Enter 6-digit code"
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                :class="{ 'input-error': fpError }"
+                style="letter-spacing: 0.2em; font-size: 1.1rem; text-align: center;"
+              />
+              <p v-if="fpError" class="error-text">{{ fpError }}</p>
+            </div>
+            <button type="submit" id="btn-fp-verify" class="btn-primary">Continue</button>
+          </form>
+
+          <button type="button" class="btn-secondary" style="margin-top:0.75rem;" @click="fpStep = 'fp-email'">
+            ← Change Email
+          </button>
+        </template>
+
+        <!-- ── Forgot Password: Step 3 – New Password ── -->
+        <template v-else-if="fpStep === 'fp-newpass'">
+          <div class="twofa-icon">🔐</div>
+          <h2>Set New Password</h2>
+          <p class="subtitle">Choose a strong new password for your account.</p>
+
+          <form @submit.prevent="handleFpReset" novalidate>
+            <div class="field">
+              <label for="fp-newpass">New Password</label>
+              <div class="password-wrap">
+                <input
+                  id="fp-newpass"
+                  :type="fpShowNew ? 'text' : 'password'"
+                  v-model="fpNewPass"
+                  placeholder="Min 8 chars, uppercase & number"
+                  :class="{ 'input-error': fpNewPassError }"
+                />
+                <button type="button" class="toggle-btn" @click="fpShowNew = !fpShowNew" :aria-label="fpShowNew ? 'Hide' : 'Show'">
+                  <svg v-if="!fpShowNew" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+              <p v-if="fpNewPassError" class="error-text">{{ fpNewPassError }}</p>
+            </div>
+
+            <div class="field">
+              <label for="fp-confirm">Confirm Password</label>
+              <div class="password-wrap">
+                <input
+                  id="fp-confirm"
+                  :type="fpShowConfirm ? 'text' : 'password'"
+                  v-model="fpConfirmPass"
+                  placeholder="Re-enter new password"
+                  :class="{ 'input-error': fpConfirmError }"
+                />
+                <button type="button" class="toggle-btn" @click="fpShowConfirm = !fpShowConfirm" :aria-label="fpShowConfirm ? 'Hide' : 'Show'">
+                  <svg v-if="!fpShowConfirm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+              <p v-if="fpConfirmError" class="error-text">{{ fpConfirmError }}</p>
+            </div>
+
+            <p v-if="fpError" class="error-text" style="text-align:center; margin-bottom:0.75rem;">{{ fpError }}</p>
+            <button type="submit" id="btn-fp-reset" class="btn-primary" :disabled="fpLoading">
+              {{ fpLoading ? 'Resetting...' : 'Reset Password' }}
+            </button>
+          </form>
+
+          <button type="button" class="btn-secondary" style="margin-top:0.75rem;" @click="fpStep = 'fp-otp'">
+            ← Back
+          </button>
+        </template>
+
       </div>
     </div>
 
@@ -211,8 +420,8 @@ const backToLogin = () => {
 </template>
 
 
+
 <style scoped>
-/* Inter font loaded globally in style.css */
 
 * {
   box-sizing: border-box;
@@ -514,6 +723,19 @@ const backToLogin = () => {
   color: #ef4444;
   font-weight: 500;
 }
+
+.success-text {
+  margin-bottom: 1rem;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #15803d;
+  text-align: center;
+}
+
 
 .divider {
   display: flex;

@@ -385,3 +385,97 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+
+// Forgot password – send reset OTP to email
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    // Always respond success to prevent email enumeration
+    if (!user || !user.isVerified) {
+      return res.status(200).json({ message: 'If an account with that email exists, a reset code has been sent.' });
+    }
+
+    const otp = generateOTP();
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
+        <div style="margin-bottom: 30px;">
+          <h1 style="color: #047857; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">SavePlate</h1>
+        </div>
+        <p style="color: #111827; font-size: 16px; margin-bottom: 16px; font-weight: 500;">Hi ${user.name || 'there'},</p>
+        <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 30px;">
+          We received a request to reset your SavePlate password. Enter the code below to continue.
+        </p>
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 30px;">
+          <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 32px; font-weight: 600; letter-spacing: 12px; color: #111827;">${otp}</span>
+        </div>
+        <p style="color: #4b5563; font-size: 14px; line-height: 1.5; margin-bottom: 30px;">
+          This code will expire in 10 minutes.<br>
+          If you didn't request a password reset, you can safely ignore this email.
+        </p>
+        <div style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} SavePlate. All rights reserved.</p>
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      email: user.email,
+      subject: 'SavePlate - Password Reset Code',
+      message: `Your SavePlate password reset code is: ${otp}. It expires in 10 minutes.`,
+      html,
+    });
+
+    console.log(`Password reset OTP sent to ${user.email}`);
+    res.status(200).json({ message: 'If an account with that email exists, a reset code has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// Reset password – verify OTP and set new password
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, otpCode, newPassword } = req.body;
+    if (!email || !otpCode || !newPassword) {
+      return res.status(400).json({ message: 'Email, OTP code, and new password are required.' });
+    }
+
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters and include one uppercase letter and one number.',
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (!user.otpExpires || user.otpExpires < Date.now()) {
+      return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
+    }
+
+    if (user.otp !== otpCode) {
+      return res.status(400).json({ message: 'Invalid reset code. Please try again.' });
+    }
+
+    user.password = newPassword;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    console.log(`Password reset successfully for ${user.email}`);
+    res.status(200).json({ message: 'Password has been reset successfully. You can now log in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

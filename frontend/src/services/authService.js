@@ -4,17 +4,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 const storage = typeof localStorage !== 'undefined'
   ? localStorage
   : {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    }
+    getItem: () => null,
+    setItem: () => { },
+    removeItem: () => { },
+  }
 
-// ── Reactive state ──
 const token = ref(storage.getItem('sp_token') || '')
 const user = ref(JSON.parse(storage.getItem('sp_user') || 'null'))
 const isLoggedIn = computed(() => !!token.value)
 
-// ── Helper: auth headers ──
+
 function authHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -22,7 +21,6 @@ function authHeaders() {
   }
 }
 
-// ── Persist / clear session ──
 function setSession(tkn, usr) {
   token.value = tkn
   user.value = usr
@@ -49,7 +47,7 @@ async function loginUser(email, password) {
   if (!response.ok) {
     throw new Error(data.message || 'Login failed')
   }
-  // If 2FA required, don't set session yet – return the flag
+  // If 2FA required, don't set session yet return the flag
   if (data.requires2FA) return data
   setSession(data.token, data.user)
   return data
@@ -154,6 +152,29 @@ function logout() {
   clearSession()
 }
 
+async function forgotPassword(email) {
+  const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to send reset code')
+  return data
+}
+
+async function resetPassword(email, otpCode, newPassword) {
+  const response = await fetch(`${API_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otpCode, newPassword }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to reset password')
+  return data
+}
+
+
 export const authService = {
   token,
   user,
@@ -167,5 +188,8 @@ export const authService = {
   getProfile,
   updateProfile,
   changePassword,
+  forgotPassword,
+  resetPassword,
   logout,
 }
+
