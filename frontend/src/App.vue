@@ -1,7 +1,11 @@
 <script setup>
-import LoginPage from './components/User Registration/LoginPage.vue';
 </script>
 
 <template>
-  <LoginPage />
+  <div id="app-root">
+    <router-view></router-view>
+  </div>
 </template>
+
+<style scoped>
+</style>
